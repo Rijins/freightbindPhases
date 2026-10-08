@@ -1,19 +1,18 @@
 import Card, { CardHeader } from "../../../../components/Card/Card";
 import { MiniAreaChart, MiniBarChart } from "../../../../components/charts";
-import PreviewBadge from "../../../../components/widgets/PreviewBadge";
 import { MODULE_ACCENTS } from "../../../../utils/themeTokens";
 
 /**
- * AnalyticsPreview — two lightweight dependency-free charts. The status
- * distribution bar chart is REAL (pagination totals per status); the weekly
- * volume trend is preview data since no analytics API exists yet.
+ * Analytics — two lightweight dependency-free charts, both backed by real
+ * data: the status distribution bar chart uses pagination totals per status,
+ * and the volume trend comes from the analytics endpoint (createdAt buckets
+ * over the last 7 days).
  */
 const AnalyticsPreview = ({ statusDistribution = [], shipmentVolume = [], loading = false }) => (
   <Card className="h-full">
     <CardHeader
-      title="Analytics Preview"
+      title="Shipment Analytics"
       subtitle="Live status mix and weekly shipment volume trend."
-      action={<PreviewBadge />}
     />
     <div className="mt-5 grid grid-cols-1 gap-6 md:grid-cols-2">
       <div>

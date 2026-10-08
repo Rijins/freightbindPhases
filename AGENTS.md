@@ -9,9 +9,11 @@ MERN freight-logistics app. Two independent npm packages (no root workspace, no 
 ## Commands
 
 - Backend: `npm run dev` (nodemon), `npm start`. Requires `.env` in `freightbind-backend/` (PORT, NODE_ENV, MONGO_URI, JWT_SECRET, JWT_EXPIRES_IN, CLIENT_URL) and a reachable MongoDB.
+- Backend tests: `npm test` (Jest) in `freightbind-backend/` — 62 unit tests covering pure permission logic (room join access, timeline hub scoping, `authorizeUpdate`, socket room builders, analytics service). Zero-DB: no MongoDB or `.env` needed. See `freightbind-backend/tests/README.md`.
+- Backend 4-role API verification: `npm run verify` in `freightbind-backend/` — boots its own server on an ephemeral port, logs in all 4 dev accounts and verifies analytics RBAC/scoping, hub capacity persistence, timeline/chat access rules, and `/api-docs`; needs MongoDB + dev accounts. Cleans up temp data.
 - Socket.IO smoke test (dev): `node scripts/socketSmokeTest.js` in `freightbind-backend/` — boots its own server on an ephemeral port, needs MongoDB + the dev accounts from `npm run update-dev-accounts`.
 - Frontend: `npm run dev`, `npm run build`, `npm run preview`.
-- **No tests exist** in either package. `npm run lint` (frontend) is broken by default — eslint is not installed and no config file exists; don't run or rely on it. Verification is manual (checklist in `freightbind-frontend/README.md`).
+- No frontend tests exist. `npm run lint` (frontend) is broken by default — eslint is not installed and no config file exists; don't run or rely on it. Verification is manual (checklist in `freightbind-frontend/README.md`).
 
 ## Security
 
@@ -19,7 +21,7 @@ MERN freight-logistics app. Two independent npm packages (no root workspace, no 
 
 ## API / backend architecture
 
-- Mounted routes (`app.js`): `/api/auth`, `/api/v1/shipments`, `/api/timeline`, `/api/notifications`, plus `/api/health`. Note the asymmetric versioning — only shipments are under `/v1`.
+- Mounted routes (`app.js`): `/api/auth`, `/api/users`, `/api/v1/shipments`, `/api/timeline`, `/api/notifications`, `/api/announcements`, `/api/ai`, `/api/hubs`, `/api/chat`, `/api/analytics`, plus `/api/health` and `/api-docs` (Swagger UI). Note the asymmetric versioning — only shipments are under `/v1`.
 - All responses use the envelope `{ success, message, data, errors }`.
 - Layering: `routes/` (express-validator checks + `middleware/validateRequest.js`) → `controllers/` → `services/`. Business rules live in services, e.g. role-gated field updates (`authorizeUpdate()` in `services/shipmentService.js`) and status-transition/role checks in `services/timelineService.js` — not in controllers.
 - Auth (`middleware/auth.js`): `protect` accepts a Bearer token or cookie; `authorize(...roles)` gates routes (create/delete shipments are Admin + Logistics Director only).

@@ -20,7 +20,7 @@ const createShipment = asyncHandler(async (req, res) => {
 });
 
 const getShipments = asyncHandler(async (req, res) => {
-    const { shipments, pagination } = await shipmentService.getShipments(req.query);
+    const { shipments, pagination } = await shipmentService.getShipments(req.query, req.user);
     return success(res, {
         message: "Shipments fetched successfully",
         data: { shipments, pagination },
@@ -28,7 +28,7 @@ const getShipments = asyncHandler(async (req, res) => {
 });
 
 const getShipmentById = asyncHandler(async (req, res) => {
-    const shipment = await shipmentService.getShipmentById(req.params.id);
+    const shipment = await shipmentService.getShipmentById(req.params.id, req.user);
     return success(res, {
         message: "Shipment fetched successfully",
         data: { shipment },

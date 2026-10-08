@@ -6,6 +6,10 @@ import Card, { CardHeader } from "../../components/Card/Card";
 import Button from "../../components/Button/Button";
 import Loader from "../../components/Loader/Loader";
 import Input from "../../components/Input/Input";
+import Avatar from "../../components/Avatar/Avatar";
+import Badge from "../../components/Badges/Badge";
+import UserRoleBadge from "../users/components/UserRoleBadge";
+import DispatcherSelect from "../../components/DispatcherSelect/DispatcherSelect";
 import TimelineHeader from "../../components/timeline/TimelineHeader";
 import TimelineFilter from "../../components/timeline/TimelineFilter";
 import TimelineEvent from "../../components/timeline/TimelineEvent";
@@ -58,7 +62,8 @@ const ShipmentTimeline = () => {
     const [statusValue, setStatusValue] = useState("");
     const [statusNote, setStatusNote] = useState("");
     const [locationValue, setLocationValue] = useState("");
-    const [dispatcherId, setDispatcherId] = useState("");
+    const [selectedDispatcher, setSelectedDispatcher] = useState(null);
+    const [lastAssigned, setLastAssigned] = useState(null);
     const [noteValue, setNoteValue] = useState("");
 
     // Load the parent shipment document (existing shipmentSlice — never duplicate
@@ -72,7 +77,10 @@ const ShipmentTimeline = () => {
 
     useEffect(() => {
         if (actionSuccess) {
-            const timer = setTimeout(clearActions, 3000);
+            const timer = setTimeout(() => {
+                clearActions();
+                setLastAssigned(null);
+            }, 3000);
             return () => clearTimeout(timer);
         }
         return undefined;
@@ -115,7 +123,8 @@ const ShipmentTimeline = () => {
         setStatusValue("");
         setStatusNote("");
         setLocationValue("");
-        setDispatcherId("");
+        setSelectedDispatcher(null);
+        setLastAssigned(null);
         setNoteValue("");
     };
 
@@ -140,9 +149,14 @@ const ShipmentTimeline = () => {
 
     const handleDispatcherSubmit = async (e) => {
         e.preventDefault();
-        if (!dispatcherId.trim()) return;
-        const result = await assignDispatcher(dispatcherId.trim());
-        if (result?.meta?.requestStatus === "fulfilled") closeAction();
+        if (!selectedDispatcher?._id) return;
+        const wasAssigned = Boolean(shipment.assignedDispatcher);
+        const result = await assignDispatcher(selectedDispatcher._id);
+        if (result?.meta?.requestStatus === "fulfilled") {
+            const { fullName } = selectedDispatcher;
+            closeAction();
+            setLastAssigned({ name: fullName, wasAssigned });
+        }
     };
 
     const handleNoteSubmit = async (e) => {
@@ -176,7 +190,17 @@ const ShipmentTimeline = () => {
 
             <TimelineHeader shipment={shipment} latestEvent={latestEvent} />
 
-            {actionSuccess && (
+            {lastAssigned && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400">
+                    <p className="font-medium">
+                        {lastAssigned.wasAssigned ? "Dispatcher updated successfully" : "Dispatcher assigned successfully"}
+                    </p>
+                    <p className="mt-0.5">
+                        {lastAssigned.name} is now assigned to this shipment.
+                    </p>
+                </div>
+            )}
+            {actionSuccess && !lastAssigned && (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400">
                     {actionSuccess}
                 </div>
@@ -215,7 +239,7 @@ const ShipmentTimeline = () => {
                                 size="sm"
                                 onClick={() => setActiveAction(activeAction === "dispatcher" ? null : "dispatcher")}
                             >
-                                Assign Dispatcher
+                                {shipment.assignedDispatcher ? "Reassign Dispatcher" : "Assign Dispatcher"}
                             </Button>
                         )}
                         {showNoteControl && (
@@ -284,21 +308,48 @@ const ShipmentTimeline = () => {
 
                     {activeAction === "dispatcher" && (
                         <form onSubmit={handleDispatcherSubmit} className="mt-4 space-y-3 max-w-md">
-                            <Input
-                                name="dispatcherId"
-                                label="Dispatcher User ID"
-                                required
-                                placeholder="Carrier Dispatcher's user ID"
-                                value={dispatcherId}
-                                onChange={(e) => setDispatcherId(e.target.value)}
+                            {shipment.assignedDispatcher && (
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/40">
+                                    <p className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-zinc-500">
+                                        Current Dispatcher
+                                    </p>
+                                    <div className="mt-2 flex items-start gap-3">
+                                        <Avatar
+                                            name={shipment.assignedDispatcher.fullName}
+                                            src={shipment.assignedDispatcher.profileImage}
+                                            size="sm"
+                                            className="mt-0.5"
+                                        />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-sm font-medium text-slate-900 dark:text-white">
+                                                {shipment.assignedDispatcher.fullName}
+                                            </span>
+                                            <span className="block truncate text-xs text-slate-500 dark:text-zinc-400">
+                                                {shipment.assignedDispatcher.email}
+                                            </span>
+                                            <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                                                <UserRoleBadge role={shipment.assignedDispatcher.role} />
+                                                <Badge tone="emerald" dot>
+                                                    Active
+                                                </Badge>
+                                            </span>
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                            <DispatcherSelect
+                                label={shipment.assignedDispatcher ? "New Dispatcher" : "Assign Dispatcher"}
+                                value={selectedDispatcher?._id || shipment.assignedDispatcher?._id || ""}
+                                displayUser={shipment.assignedDispatcher || null}
+                                onChange={setSelectedDispatcher}
                             />
-                            <p className="text-xs text-slate-400">
-                                A dispatcher picker requires a "list users" API that doesn't exist yet — enter the
-                                Carrier Dispatcher's user ID directly for now.
+                            <p className="text-xs text-slate-400 dark:text-zinc-500">
+                                Only active Carrier Dispatchers can be assigned. The change is logged to the timeline
+                                automatically.
                             </p>
                             <div className="flex gap-2">
-                                <Button type="submit" size="sm" loading={actionLoading} disabled={!dispatcherId.trim()}>
-                                    Save
+                                <Button type="submit" size="sm" loading={actionLoading} disabled={!selectedDispatcher?._id}>
+                                    {shipment.assignedDispatcher ? "Reassign" : "Assign"}
                                 </Button>
                                 <Button type="button" variant="ghost" size="sm" onClick={closeAction}>
                                     Cancel

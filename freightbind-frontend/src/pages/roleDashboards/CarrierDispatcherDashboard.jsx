@@ -37,14 +37,20 @@ const CarrierDispatcherDashboard = () => {
           onClick: () => navigate("/notifications"),
         },
       ],
-      stats: ({ active, counts, deliveredToday, previewKpis }) => [
+      stats: ({ active, counts, deliveredToday, analyticsKpis }) => [
         { label: "Active shipments", value: active },
         { label: "In transit", value: counts?.["In Transit"] },
         {
           label: "Delivered today",
           value: `${deliveredToday?.count}${deliveredToday?.capped ? "+" : ""}`,
         },
-        { label: "Fleet available", value: `${previewKpis.fleetAvailability}%` },
+        {
+          label: "Fleet available",
+          value:
+            analyticsKpis?.fleetAvailability == null
+              ? "—"
+              : `${analyticsKpis.fleetAvailability}%`,
+        },
       ],
     },
     kpis: {
@@ -67,7 +73,6 @@ const CarrierDispatcherDashboard = () => {
           valueKey: "fleetAvailability",
           suffix: "%",
           accent: "fleet",
-          preview: true,
           delay: 0.2,
         },
       ],

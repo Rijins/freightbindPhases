@@ -1,7 +1,6 @@
 import { motion } from "framer-motion";
 import Badge from "../Badges/Badge";
 import Skeleton from "../Skeleton/Skeleton";
-import PreviewBadge from "./PreviewBadge";
 import { cn } from "../../utils/cn";
 import { EASE } from "../../animations";
 
@@ -12,18 +11,15 @@ const STATUS_META = {
 };
 
 /**
- * SystemHealthWidget — one row per backend service with status, latency and
- * uptime. Section header includes an overall status badge. No health API
- * exists yet, so consumers pass preview rows and mark the panel with the
- * built-in PreviewBadge via `preview`.
+ * SystemHealthWidget — one row per backend service with a live status badge
+ * and detail. Section header includes an overall status badge.
  *
- * Props: services [{ id, name, status, latency, uptime }], loading, preview,
- *   title, subtitle, overall, className.
+ * Props: services [{ id, name, status, detail }], loading, title, subtitle,
+ *   overall, className.
  */
 const SystemHealthWidget = ({
   services = [],
   loading = false,
-  preview = false,
   title = "System Health",
   subtitle = "Live status of platform services.",
   overall,
@@ -70,7 +66,6 @@ const SystemHealthWidget = ({
           <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {preview && <PreviewBadge />}
           <Badge tone={statusMeta.tone} size="sm" dot>
             {statusMeta.label}
           </Badge>
@@ -99,11 +94,8 @@ const SystemHealthWidget = ({
                 </span>
               </div>
               <div className="flex shrink-0 items-center gap-4">
-                <span className="hidden font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400 sm:inline">
-                  {service.latency}
-                </span>
-                <span className="hidden font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400 md:inline">
-                  {service.uptime}
+                <span className="hidden max-w-[180px] truncate font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400 sm:inline">
+                  {service.detail || service.latency || ""}
                 </span>
                 <Badge tone={meta.tone} size="sm">
                   {meta.label}

@@ -170,6 +170,8 @@ export const MODULE_ROUTES = Object.freeze([
   { pattern: /^\/shipments\/.+\/timeline$/, module: "timeline" },
   { pattern: /^\/shipments/, module: "shipments" },
   { pattern: /^\/notifications/, module: "notifications" },
+  { pattern: /^\/announcements/, module: "notifications" },
+  { pattern: /^\/profile/, module: "settings" },
   { pattern: /^\/analytics/, module: "analytics" },
   { pattern: /^\/reports/, module: "reports" },
   { pattern: /^\/ai/, module: "ai" },

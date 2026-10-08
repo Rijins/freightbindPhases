@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useNavigate, useParams } from "react-router-dom";
@@ -9,6 +9,8 @@ import Card, { CardHeader } from "../../components/Card/Card";
 import Input from "../../components/Input/Input";
 import Button from "../../components/Button/Button";
 import Loader from "../../components/Loader/Loader";
+import DispatcherSelect from "../../components/DispatcherSelect/DispatcherSelect";
+import HubSelect from "../../components/HubSelect/HubSelect";
 import {
   fetchShipmentById,
   updateShipment,
@@ -76,6 +78,7 @@ const EditShipment = () => {
     handleSubmit,
     reset,
     watch,
+    control,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(editShipmentSchema),
@@ -102,6 +105,7 @@ const EditShipment = () => {
         priority: selected.priority || "",
         status: selected.status || "",
         assignedDispatcher: selected.assignedDispatcher?._id || selected.assignedDispatcher || "",
+        hub: selected.hub?._id || selected.hub || "",
         estimatedDeparture: toDateTimeInputValue(selected.estimatedDeparture),
         estimatedArrival: toDateTimeInputValue(selected.estimatedArrival),
         actualDeparture: toDateTimeInputValue(selected.actualDeparture),
@@ -243,12 +247,33 @@ const EditShipment = () => {
                 <StatusInline value={currentStatus} />.
               </p>
             )}
-            <Input
-              label="Assigned Dispatcher (User ID)"
+            <Controller
               name="assignedDispatcher"
-              disabled={!isField("assignedDispatcher")}
-              error={errors.assignedDispatcher?.message}
-              {...register("assignedDispatcher")}
+              control={control}
+              render={({ field }) => (
+                <DispatcherSelect
+                  label="Assigned Dispatcher"
+                  value={field.value}
+                  displayUser={selected.assignedDispatcher?._id ? selected.assignedDispatcher : null}
+                  onChange={(dispatcher) => field.onChange(dispatcher ? dispatcher._id : "")}
+                  disabled={!isField("assignedDispatcher")}
+                  error={errors.assignedDispatcher?.message}
+                />
+              )}
+            />
+            <Controller
+              name="hub"
+              control={control}
+              render={({ field }) => (
+                <HubSelect
+                  label="Relevant Hub"
+                  value={field.value}
+                  displayHub={selected.hub?._id ? selected.hub : null}
+                  onChange={(hub) => field.onChange(hub ? hub._id : "")}
+                  disabled={!isField("hub")}
+                  error={errors.hub?.message}
+                />
+              )}
             />
             <Input
               label="Estimated Departure"

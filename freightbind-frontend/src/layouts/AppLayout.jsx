@@ -6,6 +6,7 @@ import Sidebar from "../components/Sidebar/Sidebar";
 import Breadcrumb from "../components/Breadcrumb/Breadcrumb";
 import Footer from "../components/Footer/Footer";
 import ConnectionStatus from "../components/ConnectionStatus/ConnectionStatus";
+import RealtimeNotificationToast from "../components/notifications/RealtimeNotificationToast";
 import useRealtimeNotifications from "../hooks/useRealtimeNotifications";
 import useRealtimeShipments from "../hooks/useRealtimeShipments";
 
@@ -86,6 +87,7 @@ const AppLayout = () => {
         </div>
       </div>
       <ConnectionStatus />
+      <RealtimeNotificationToast />
     </MotionConfig>
   );
 };

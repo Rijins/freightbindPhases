@@ -41,6 +41,7 @@ const socketAuth = async (socket, next) => {
             fullName: user.fullName,
             email: user.email,
             status: user.status,
+            hub: user.hub ? String(user.hub) : null,
         };
 
         next();

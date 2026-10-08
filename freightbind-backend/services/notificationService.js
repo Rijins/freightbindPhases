@@ -1,6 +1,7 @@
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const Shipment = require("../models/Shipment");
+const Hub = require("../models/Hub");
 const { ROLES } = require("../constants/roles");
 const {
     NOTIFICATION_TYPES,
@@ -196,10 +197,15 @@ const getNotifications = async (filters, actingUser) => {
 
     const query = {};
 
-    // Non-admins can only ever see their own notifications, regardless of
-    // what `recipient` filter they pass.
-    if (actingUser.role === ROLES.ADMIN) {
-        if (recipient) query.recipient = recipient;
+    // Every user — including Admins — sees only their own notifications by
+    // default, so a user's list never surfaces notifications intended for
+    // someone else (e.g. a dispatcher's "Shipment Assigned" notice must not
+    // appear in an Admin's drawer just because the Admin created the
+    // shipment). Admins may still explicitly browse another user's
+    // notifications by passing a `recipient` filter; non-admins are always
+    // scoped to themselves regardless of what `recipient` they pass.
+    if (recipient && actingUser.role === ROLES.ADMIN) {
+        query.recipient = recipient;
     } else {
         query.recipient = actingUser._id;
     }
@@ -544,6 +550,111 @@ const notifyAIAlert = async (recipient, title, message, actingUser = null, relat
         relatedShipment,
     });
 
+// ------------------------------------------------------------------
+// Hub-operational notifications (Phase 9 Part 8)
+// ------------------------------------------------------------------
+// Recipients are ALWAYS scoped to the shipment's own hub: the active Hub
+// Operators assigned to `shipment.hub` (sender excluded). Hub Operators of
+// unrelated hubs receive nothing.
+const notifyHubOperators = async (shipment, actingUserId, notificationFn) => {
+    if (!shipment || !shipment.hub) return [];
+
+    const hubId = shipment.hub._id || shipment.hub;
+    const operators = await User.find({ role: ROLES.HUB_OPERATOR, status: "active", hub: hubId })
+        .select("_id")
+        .lean();
+
+    return Promise.all(
+        operators
+            .filter((operator) => !actingUserId || !operator._id.equals(actingUserId))
+            .map((operator) => notificationFn(operator._id))
+    );
+};
+
+// Fired when a shipment is created with — or reassigned to — a hub. Only the
+// operators of that hub are notified.
+const notifyHubShipmentRelevant = async (shipment, actingUser) => {
+    if (!shipment || !shipment.hub) return null;
+    const hubId = shipment.hub._id || shipment.hub;
+    const hubDoc = shipment.hub.name ? shipment.hub : await Hub.findById(hubId);
+    const { title, message } = builder.hubShipmentRelevant(shipment, hubDoc);
+    const shipmentId = shipment._id;
+
+    return notifyHubOperators(shipment, actingUser?._id ?? null, (recipient) =>
+        dispatchNotification({
+            title,
+            message,
+            type: NOTIFICATION_TYPES.SHIPMENT_CREATED,
+            priority: NOTIFICATION_PRIORITIES.MEDIUM,
+            recipient,
+            sender: actingUser?._id ?? null,
+            relatedShipment: shipmentId,
+        })
+    );
+};
+
+// Fired when a shipment's location is updated to match its hub's name
+// ("Shipment arrived at hub"). Delivered to the hub's operators AND the
+// assigned dispatcher, so both sides of the handoff stay in sync.
+const notifyHubShipmentArrived = async (shipment, actingUser) => {
+    if (!shipment || !shipment.hub) return null;
+    const hubId = shipment.hub._id || shipment.hub;
+    const hubDoc = shipment.hub.name ? shipment.hub : await Hub.findById(hubId);
+    const { title, message } = builder.hubShipmentArrived(shipment, hubDoc);
+    const shipmentId = shipment._id;
+
+    const jobs = await notifyHubOperators(shipment, actingUser?._id ?? null, (recipient) =>
+        dispatchNotification({
+            title,
+            message,
+            type: NOTIFICATION_TYPES.SHIPMENT_ARRIVED_AT_HUB,
+            priority: NOTIFICATION_PRIORITIES.HIGH,
+            recipient,
+            sender: actingUser?._id ?? null,
+            relatedShipment: shipmentId,
+        })
+    );
+
+    if (shipment.assignedDispatcher) {
+        const dispatcherId = shipment.assignedDispatcher._id || shipment.assignedDispatcher;
+        jobs.push(
+            dispatchNotification({
+                title,
+                message,
+                type: NOTIFICATION_TYPES.SHIPMENT_ARRIVED_AT_HUB,
+                priority: NOTIFICATION_PRIORITIES.HIGH,
+                recipient: dispatcherId,
+                sender: actingUser?._id ?? null,
+                relatedShipment: shipmentId,
+            })
+        );
+    }
+
+    return Promise.all(jobs);
+};
+
+// ------------------------------------------------------------------
+// Chat notifications (Phase 9)
+// ------------------------------------------------------------------
+// Fired for every persisted chat message on a shipment. The recipient is a
+// single authorized participant (the assigned dispatcher, or one of the
+// shipment hub's active Hub Operators) — NEVER a role/broadcast emit. The
+// sender is excluded; targeting is decided by chatService.sendMessage, which
+// reuses the same participant set as chat delivery itself.
+const notifyChatMessage = async ({ shipment, sender, recipient }) => {
+    const { title, message } = builder.chatMessage(shipment, sender);
+
+    return dispatchNotification({
+        title,
+        message,
+        type: NOTIFICATION_TYPES.CHAT_MESSAGE,
+        priority: NOTIFICATION_PRIORITIES.LOW,
+        recipient,
+        sender: sender?._id ?? null,
+        relatedShipment: shipment._id,
+    });
+};
+
 module.exports = {
     createNotification,
     getNotifications,
@@ -566,4 +677,7 @@ module.exports = {
     notifySuccess,
     notifyError,
     notifyAIAlert,
+    notifyHubShipmentRelevant,
+    notifyHubShipmentArrived,
+    notifyChatMessage,
 };

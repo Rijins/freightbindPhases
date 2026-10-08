@@ -12,6 +12,7 @@ const shipmentFields = [
   "priority",
   "status",
   "assignedDispatcher",
+  "hub",
   "estimatedDeparture",
   "estimatedArrival",
   "actualDeparture",
@@ -62,6 +63,10 @@ const shipmentFieldValidation = (required = false) => [
     .optional({ nullable: true })
     .isMongoId()
     .withMessage("Assigned dispatcher must be a valid user ID"),
+  body("hub")
+    .optional({ nullable: true })
+    .isMongoId()
+    .withMessage("Hub must be a valid hub ID"),
   optionalDate("estimatedDeparture"),
   optionalDate("estimatedArrival"),
   optionalDate("actualDeparture"),
@@ -104,6 +109,10 @@ const getShipmentsValidation = [
     .optional()
     .isMongoId()
     .withMessage("Assigned dispatcher must be a valid user ID"),
+  query("hub")
+    .optional()
+    .isMongoId()
+    .withMessage("Hub must be a valid hub ID"),
   query("page").optional().isInt({ min: 1 }).withMessage("Page must be a positive integer").toInt(),
   query("limit")
     .optional()

@@ -23,6 +23,7 @@ const SOCKET_EVENTS = Object.freeze({
     USER_OFFLINE: "user:offline",
     AI_ALERT: "ai:alert",
     SYSTEM_ALERT: "system:alert",
+    CHAT_MESSAGE: "chat:message",
 
     // Protocol events (client <-> server)
     AUTH_ERROR: "auth:error",

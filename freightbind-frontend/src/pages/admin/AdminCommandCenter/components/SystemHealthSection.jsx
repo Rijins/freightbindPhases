@@ -1,9 +1,8 @@
 import SystemHealthWidget from "../../../../components/widgets/SystemHealthWidget";
 
 /**
- * SystemHealthSection — preview infrastructure status. No health API exists
- * yet, so service rows are sample values and the panel is marked as a
- * preview.
+ * SystemHealthSection — live infrastructure status served by the analytics
+ * endpoint: API server, database connection and realtime socket client count.
  */
 const SystemHealthSection = ({ services = [], loading = false }) => {
   const overall = services.some((s) => s.status === "down")
@@ -18,7 +17,6 @@ const SystemHealthSection = ({ services = [], loading = false }) => {
       subtitle="Live status of platform services."
       services={services}
       loading={loading}
-      preview
       overall={overall}
     />
   );

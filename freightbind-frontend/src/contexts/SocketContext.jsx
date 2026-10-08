@@ -36,6 +36,15 @@ export const SOCKET_STATUS = Object.freeze({
   RECONNECTING: "reconnecting",
 });
 
+// The Socket.IO manager retries reconnectionAttempts times (≈90s) per cycle
+// before emitting "reconnect_failed". A backend that is down for longer —
+// e.g. nodemon restarting, or the frontend started before the backend — would
+// otherwise kill realtime permanently until a refresh. Instead, restart a
+// fresh cycle automatically, bounded so a dead backend is never hammered
+// forever: RESTART_CYCLES_MAX full cycles, spaced RESTART_DELAY_MS apart.
+const RESTART_CYCLES_MAX = 5;
+const RESTART_DELAY_MS = 10000;
+
 const SocketContext = createContext(null);
 
 const AUTH_ERROR_MESSAGES = Object.freeze({
@@ -74,6 +83,10 @@ const SocketProvider = ({ children }) => {
   // One manager for the provider's lifetime; all app listeners flow through it.
   const eventManagerRef = useRef(new SocketEventManager());
   const socketRef = useRef(null);
+  // Auto-restart bookkeeping: timer for the next retry cycle and how many
+  // full cycles have run since the last successful connect.
+  const restartTimerRef = useRef(null);
+  const cycleRef = useRef(0);
 
   const connect = useCallback(() => {
     const socket = socketRef.current;
@@ -95,15 +108,26 @@ const SocketProvider = ({ children }) => {
     setStatus(SOCKET_STATUS.DISCONNECTED);
   }, []);
 
+  const clearRestartTimer = useCallback(() => {
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+  }, []);
+
   const reconnect = useCallback(() => {
+    clearRestartTimer();
+    cycleRef.current = 0;
     disconnect();
     connect();
-  }, [disconnect, connect]);
+  }, [clearRestartTimer, disconnect, connect]);
 
   // Wire the socket for the current auth session. Logout or a new token
   // tears the old socket down; a full teardown also happens on unmount.
   useEffect(() => {
     if (!isAuthenticated || !token) {
+      clearRestartTimer();
+      cycleRef.current = 0;
       destroySocketClient();
       socketRef.current = null;
       eventManagerRef.current.offAll();
@@ -120,6 +144,7 @@ const SocketProvider = ({ children }) => {
     setStatus(SOCKET_STATUS.CONNECTING);
 
     const handleConnect = () => {
+      cycleRef.current = 0;
       setStatus(SOCKET_STATUS.CONNECTED);
       setLastError(null);
       setSocketId(socket.id);
@@ -159,6 +184,18 @@ const SocketProvider = ({ children }) => {
     };
 
     const handleReconnectFailed = () => {
+      // The manager has exhausted this cycle's retry budget. Instead of
+      // stopping permanently, start a fresh cycle (bounded) so the socket
+      // self-heals whenever the backend comes back.
+      if (cycleRef.current < RESTART_CYCLES_MAX) {
+        cycleRef.current += 1;
+        setStatus(SOCKET_STATUS.RECONNECTING);
+        setLastError(
+          `The realtime server could not be reached. Retrying in ${RESTART_DELAY_MS / 1000}s…`
+        );
+        restartTimerRef.current = setTimeout(() => socket.connect(), RESTART_DELAY_MS);
+        return;
+      }
       setStatus(SOCKET_STATUS.DISCONNECTED);
       setLastError("The realtime server could not be reached.");
     };
@@ -187,6 +224,7 @@ const SocketProvider = ({ children }) => {
     socket.connect();
 
     return () => {
+      clearRestartTimer();
       for (const [eventName, handler] of socketListeners) {
         socket.off(eventName, handler);
       }

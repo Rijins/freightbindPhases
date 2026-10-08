@@ -28,6 +28,7 @@ const { io: createClient } = require("socket.io-client");
 
 const app = require("../app");
 const connectDB = require("../config/db");
+const Shipment = require("../models/Shipment");
 const { initSocket, closeSocketServer } = require("../sockets");
 const socketService = require("../services/socketService");
 const { SOCKET_EVENTS } = require("../constants/socketEvents");
@@ -86,6 +87,29 @@ const login = async (baseUrl, { email, password }) => {
         throw new Error(`Login failed for ${email}: ${body.message}`);
     }
     return { user: body.data.user, token: body.data.token };
+};
+
+// The smoke test exercises real shipment rooms, so it creates one through the
+// REST API (Admin-only). Joins to a room whose shipment id does not resolve to
+// a real, viewable shipment are REJECTED by design — using a user id as a
+// shipment id (as older versions of this test did) fails the auth rule.
+const createShipment = async (baseUrl, token, body) => {
+    const response = await fetch(`${baseUrl}/api/v1/shipments`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+    });
+    const json = await response.json();
+    if (!response.ok || !json.success) {
+        const detail = Array.isArray(json.errors)
+            ? json.errors.map((e) => e.msg || JSON.stringify(e)).join("; ")
+            : json.message || "unknown";
+        throw new Error(`Create shipment failed (${response.status}): ${detail}`);
+    }
+    return json.data.shipment;
 };
 
 const connectClient = (baseUrl, token) =>
@@ -172,6 +196,23 @@ const run = async () => {
     const dispatcherId = String(dispatcher.user._id);
     const hubId = String(hub.user._id);
 
+    if (!hub.user.hub) {
+        throw new Error("Hub dev account has no hub assigned — run the hub setup before the smoke test");
+    }
+    const shipment = await createShipment(baseUrl, admin.token, {
+        title: "Socket Smoke Shipment",
+        cargoType: "General",
+        shipmentType: "FTL",
+        origin: "Kochi",
+        destination: "Chennai",
+        priority: "Medium",
+        weight: 500,
+        hub: String(hub.user.hub),
+        assignedDispatcher: dispatcherId,
+    });
+    const shipmentId = String(shipment._id);
+    report(true, `created real shipment ${shipment.shipmentId} for room tests`);
+
     // ------------------------------------------------------------------
     // 3. Handshake authentication
     // ------------------------------------------------------------------
@@ -218,7 +259,7 @@ const run = async () => {
     // 5. Client room requests (shipment rooms only)
     // ------------------------------------------------------------------
     console.log("\n5. Client room requests");
-    const shipmentRoom = `shipment:${dispatcherId}`;
+    const shipmentRoom = `shipment:${shipmentId}`;
 
     dispatcherSocketA.emit(SOCKET_EVENTS.ROOM_JOIN, shipmentRoom);
     hubSocket.emit(SOCKET_EVENTS.ROOM_JOIN, shipmentRoom);
@@ -231,7 +272,7 @@ const run = async () => {
     // 6. socketService emits + cross-role isolation
     // ------------------------------------------------------------------
     console.log("\n6. socketService emits");
-    socketService.emitToShipment(dispatcherId, SOCKET_EVENTS.SHIPMENT_UPDATED, { sequence: 1 });
+    socketService.emitToShipment(shipmentId, SOCKET_EVENTS.SHIPMENT_UPDATED, { sequence: 1 });
     await settle();
     report(hasSequence(dispatcherEventsA.shipmentUpdated, 1), "emitToShipment reached dispatcher socket A");
     report(hasSequence(hubEvents.shipmentUpdated, 1), "emitToShipment reached hub (joined room)");
@@ -269,18 +310,18 @@ const run = async () => {
     // ------------------------------------------------------------------
     console.log("\n7. Service-level room management");
     socketService.leaveAllRooms(dispatcherId);
-    socketService.emitToShipment(dispatcherId, SOCKET_EVENTS.SHIPMENT_UPDATED, { sequence: 6 });
+    socketService.emitToShipment(shipmentId, SOCKET_EVENTS.SHIPMENT_UPDATED, { sequence: 6 });
     await settle();
     report(hasSequence(hubEvents.shipmentUpdated, 6), "shipment emit still reached hub after dispatcher left all rooms");
     report(!hasSequence(dispatcherEventsA.shipmentUpdated, 6), "leaveAllRooms removed dispatcher from shipment room");
 
     socketService.joinRoom(dispatcherId, shipmentRoom);
-    socketService.emitToShipment(dispatcherId, SOCKET_EVENTS.SHIPMENT_UPDATED, { sequence: 7 });
+    socketService.emitToShipment(shipmentId, SOCKET_EVENTS.SHIPMENT_UPDATED, { sequence: 7 });
     await settle();
     report(hasSequence(dispatcherEventsA.shipmentUpdated, 7), "joinRoom re-added dispatcher; emit reached socket A again");
 
     socketService.leaveRoom(dispatcherId, shipmentRoom);
-    socketService.emitToShipment(dispatcherId, SOCKET_EVENTS.SHIPMENT_UPDATED, { sequence: 8 });
+    socketService.emitToShipment(shipmentId, SOCKET_EVENTS.SHIPMENT_UPDATED, { sequence: 8 });
     await settle();
     report(!hasSequence(dispatcherEventsA.shipmentUpdated, 8), "leaveRoom removed dispatcher from shipment room");
 
@@ -315,10 +356,11 @@ const run = async () => {
     console.log("\n9. Cleanup");
     adminSocket.disconnect();
     await settle();
+    await Shipment.deleteOne({ _id: shipmentId });
     await closeSocketServer();
     await closeHttpServer(server);
     await mongoose.disconnect();
-    report(true, "socket server closed and DB disconnected");
+    report(true, "socket server closed, test shipment removed, DB disconnected");
 };
 
 run()

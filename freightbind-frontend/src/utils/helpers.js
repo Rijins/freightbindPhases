@@ -29,6 +29,14 @@ export const formatDateTime = (value) => {
     minute: "2-digit",
   });
 };
+
+/** Formats an ISO date string as a short time (used for chat message bubbles). */
+export const formatTime = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+};
  
 /** Converts a Date (or ISO string) into the yyyy-MM-ddThh:mm shape <input type="datetime-local"> needs. */
 export const toDateTimeInputValue = (value) => {
@@ -88,13 +96,80 @@ export const canCreateShipment = (role) =>
  
 export const canDeleteShipment = (role) =>
   [ROLES.ADMIN, ROLES.LOGISTICS_DIRECTOR].includes(role);
+
+/** Mirrors routes/userRoutes.js: only Admin may manage users. */
+export const canManageUsers = (role) => role === ROLES.ADMIN;
+
+/** Mirrors routes/announcementRoutes.js: only Admin may manage announcements. */
+export const canManageAnnouncements = (role) => role === ROLES.ADMIN;
+
+/** Mirrors routes/hubRoutes.js: only Admin may manage hubs. */
+export const canManageHubs = (role) => role === ROLES.ADMIN;
+
+/**
+ * Mirrors services/chatService.js assertChatAccess() so the UI only ever
+ * offers chat on shipments the backend will accept. Backend remains the
+ * final authority (403 if this mirror drifts).
+ */
+export const canChatOnShipment = (user, shipment) => {
+  if (!user || !shipment) return false;
+
+  if (user.role === ROLES.CARRIER_DISPATCHER) {
+    const dispatcherId =
+      typeof shipment?.assignedDispatcher === "object"
+        ? shipment.assignedDispatcher?._id
+        : shipment?.assignedDispatcher;
+    return Boolean(dispatcherId) && (dispatcherId === user._id || dispatcherId === user.id);
+  }
+
+  if (user.role === ROLES.HUB_OPERATOR) {
+    const userHub = user.hub || user.hubId;
+    const shipmentHub =
+      typeof shipment?.hub === "object" ? shipment.hub?._id : shipment?.hub;
+    return Boolean(userHub) && Boolean(shipmentHub) && String(userHub) === String(shipmentHub);
+  }
+
+  return false;
+};
+
+/** UI badge tones for hub statuses (models/Hub.js). */
+export const HUB_STATUS_BADGE_TONES = {
+  active: "emerald",
+  inactive: "slate",
+};
+
+/** UI badge tones for user account statuses (models/User.js). */
+export const USER_STATUS_BADGE_TONES = {
+  active: "emerald",
+  inactive: "slate",
+  suspended: "amber",
+};
+
+/**
+ * Effective announcement status for display. "expired" is derived from the
+ * end date at read time — the backend never stores it and never exposes an
+ * expired announcement as active.
+ */
+export const getAnnouncementDisplayStatus = (announcement, now = Date.now()) => {
+  if (announcement?.endDate && new Date(announcement.endDate).getTime() < now) {
+    return "expired";
+  }
+  return announcement?.status || "inactive";
+};
+
+/** UI badge tones for announcement statuses (active/inactive/derived expired). */
+export const ANNOUNCEMENT_STATUS_BADGE_TONES = {
+  active: "emerald",
+  inactive: "slate",
+  expired: "amber",
+};
  
 export const canEditShipment = (user, shipment) => {
   if (!user || !shipment) return false;
   if (shipment.status === "Cancelled") return false;
- 
+  
   if ([ROLES.ADMIN, ROLES.LOGISTICS_DIRECTOR].includes(user.role)) return true;
- 
+  
   if (user.role === ROLES.CARRIER_DISPATCHER) {
     const dispatcherId =
       typeof shipment.assignedDispatcher === "object"
@@ -102,12 +177,12 @@ export const canEditShipment = (user, shipment) => {
         : shipment.assignedDispatcher;
     return dispatcherId === user._id || dispatcherId === user.id;
   }
- 
+  
   if (user.role === ROLES.HUB_OPERATOR) {
-    // Hub Operators may only ever update currentLocation.
-    return true;
+    // Hub Operators may only ever update currentLocation (see getEditableFields).
+    return isHubRelevant(user, shipment);
   }
- 
+  
   return false;
 };
  
@@ -124,6 +199,7 @@ export const getEditableFields = (user, shipment) => {
     "priority",
     "status",
     "assignedDispatcher",
+    "hub",
     "estimatedDeparture",
     "estimatedArrival",
     "actualDeparture",
@@ -137,7 +213,7 @@ export const getEditableFields = (user, shipment) => {
   if (!user) return [];
   if ([ROLES.ADMIN, ROLES.LOGISTICS_DIRECTOR].includes(user.role)) return allFields;
   if (user.role === ROLES.CARRIER_DISPATCHER) {
-    return allFields.filter((f) => f !== "assignedDispatcher");
+    return allFields.filter((f) => f !== "assignedDispatcher" && f !== "hub");
   }
   if (user.role === ROLES.HUB_OPERATOR) {
     return ["currentLocation"];
@@ -196,12 +272,20 @@ export const canUpdateShipmentStatus = (user, shipment) => {
   return false;
 };
  
+/** Is the Hub Operator truly scoped to the shipment's own hub (mirrors backend assertHubRelevant)? */
+const isHubRelevant = (user, shipment) => {
+  const userHub = user?.hub || user?.hubId;
+  const shipmentHub =
+    typeof shipment?.hub === "object" ? shipment.hub?._id : shipment?.hub;
+  return Boolean(userHub) && Boolean(shipmentHub) && String(userHub) === String(shipmentHub);
+};
+
 /** Backend services/timelineService.js: assertCanUpdateLocation mirrored for UI hints only. */
 export const canUpdateShipmentLocation = (user, shipment) => {
   if (!user || !shipment) return false;
   if ([ROLES.ADMIN, ROLES.LOGISTICS_DIRECTOR].includes(user.role)) return true;
   if (user.role === ROLES.CARRIER_DISPATCHER) return isAssignedDispatcher(user, shipment);
-  if (user.role === ROLES.HUB_OPERATOR) return true;
+  if (user.role === ROLES.HUB_OPERATOR) return isHubRelevant(user, shipment);
   return false;
 };
  
@@ -214,7 +298,7 @@ export const canAddTimelineNote = (user, shipment) => {
   if (!user || !shipment) return false;
   if ([ROLES.ADMIN, ROLES.LOGISTICS_DIRECTOR].includes(user.role)) return true;
   if (user.role === ROLES.CARRIER_DISPATCHER) return isAssignedDispatcher(user, shipment);
-  if (user.role === ROLES.HUB_OPERATOR) return true;
+  if (user.role === ROLES.HUB_OPERATOR) return isHubRelevant(user, shipment);
   return false;
 };
 

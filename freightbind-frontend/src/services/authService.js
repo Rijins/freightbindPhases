@@ -8,6 +8,11 @@ const login = async ({ email, password }) => {
   return data.data; // { user, token }
 };
 
+const register = async ({ fullName, email, password, phone }) => {
+  const { data } = await axiosInstance.post("/auth/register", { fullName, email, password, phone });
+  return data.data; // { user, token }
+};
+
 const logout = async () => {
   const { data } = await axiosInstance.post("/auth/logout");
   return data.data;
@@ -31,6 +36,6 @@ const changePassword = async ({ currentPassword, newPassword }) => {
   return data.data;
 };
 
-const authService = { login, logout, getCurrentUser, updateProfile, changePassword };
+const authService = { login, register, logout, getCurrentUser, updateProfile, changePassword };
 
 export default authService;

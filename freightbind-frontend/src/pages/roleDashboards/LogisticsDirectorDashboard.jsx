@@ -28,14 +28,24 @@ const LogisticsDirectorDashboard = () => {
           onClick: () => navigate("/shipments"),
         },
       ],
-      stats: ({ active, deliveredToday, previewKpis }) => [
+      stats: ({ active, deliveredToday, analyticsKpis }) => [
         { label: "Active shipments", value: active },
         {
           label: "Delivered today",
           value: `${deliveredToday?.count}${deliveredToday?.capped ? "+" : ""}`,
         },
-        { label: "Fleet available", value: `${previewKpis.fleetAvailability}%` },
-        { label: "Hub utilization", value: `${previewKpis.hubUtilization}%` },
+        {
+          label: "Fleet available",
+          value:
+            analyticsKpis?.fleetAvailability == null
+              ? "—"
+              : `${analyticsKpis.fleetAvailability}%`,
+        },
+        {
+          label: "Hub utilization",
+          value:
+            analyticsKpis?.hubUtilization == null ? "—" : `${analyticsKpis.hubUtilization}%`,
+        },
       ],
     },
     kpis: {},

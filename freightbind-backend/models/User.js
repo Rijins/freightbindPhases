@@ -26,10 +26,20 @@ const userSchema = new mongoose.Schema(
     },
     phone: { type: String, trim: true, default: null },
     profileImage: { type: String, default: null },
+    // Operational Hub a user belongs to. Only meaningful for Hub Operators —
+    // the service layer rejects hub assignment for any other role. Default
+    // null so non-operator users never carry a required hub.
+    hub: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Hub",
+      default: null,
+    },
     status: { type: String, enum: ["active", "inactive", "suspended"], default: "active" },
   },
   { timestamps: true }
 );
+
+userSchema.index({ hub: 1 });
 
 userSchema.pre("save", async function () {
   if (!this.isModified("password")) return;

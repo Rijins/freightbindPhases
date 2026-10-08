@@ -1,29 +1,28 @@
+import StatCard from "../../../../components/Card/StatCard";
+import DashboardGrid from "../../../../components/widgets/DashboardGrid";
 import {
   FiActivity,
   FiAlertOctagon,
   FiAlertTriangle,
   FiCalendar,
   FiCheckCircle,
-  FiClock,
   FiHome,
   FiInbox,
   FiPackage,
   FiTruck,
 } from "react-icons/fi";
-import StatCard from "../../../../components/Card/StatCard";
-import DashboardGrid from "../../../../components/widgets/DashboardGrid";
-import PreviewBadge from "../../../../components/widgets/PreviewBadge";
 
 /**
  * Default KPI set shown to Admin and Logistics Director: Total, Active,
  * Pending, Critical, Delayed, Delivered and Delivered Today are real,
  * pagination-derived counts kept realtime-synchronized by the dashboard slice
- * (Phase 7 Part 5); Pending Approvals, Fleet Availability and Hub Utilization
- * are preview values (no backend API exists yet) and are marked with
- * PreviewBadge.
+ * (Phase 7 Part 5); Fleet Availability and Hub Utilization are real too,
+ * derived server-side from the analytics endpoint (transport vehicles in the
+ * active fleet scope, hub shipment loads vs. configured capacity). A null
+ * value renders as "—" (e.g. Hub Utilization before any hub has a capacity).
  *
  * Each card resolves its value through `valueKey` against `counts`,
- * `deliveredToday` or `previewKpis`, so role dashboards can pass their own
+ * `deliveredToday` or `analyticsKpis`, so role dashboards can pass their own
  * `cards` (and `columns`) while keeping the exact same card rendering.
  */
 const DEFAULT_CARDS = [
@@ -41,20 +40,11 @@ const DEFAULT_CARDS = [
     delay: 0.24,
   },
   {
-    icon: FiClock,
-    title: "Pending Approvals",
-    valueKey: "pendingApprovals",
-    accent: "ai",
-    preview: true,
-    delay: 0.28,
-  },
-  {
     icon: FiTruck,
     title: "Fleet Availability",
     valueKey: "fleetAvailability",
     suffix: "%",
     accent: "fleet",
-    preview: true,
     delay: 0.32,
   },
   {
@@ -63,7 +53,6 @@ const DEFAULT_CARDS = [
     valueKey: "hubUtilization",
     suffix: "%",
     accent: "analytics",
-    preview: true,
     delay: 0.36,
   },
 ];
@@ -72,40 +61,37 @@ const KpiGrid = ({
   loading,
   counts,
   deliveredToday,
-  previewKpis,
+  analyticsKpis,
   cards = DEFAULT_CARDS,
   columns = 4,
 }) => {
   const resolveValue = (card) => {
     if (card.valueKey === "deliveredToday") return deliveredToday?.count;
-    if (card.valueKey === "pendingApprovals") return previewKpis?.pendingApprovals;
-    if (card.valueKey === "fleetAvailability") return previewKpis?.fleetAvailability;
-    if (card.valueKey === "hubUtilization") return previewKpis?.hubUtilization;
+    if (card.valueKey === "fleetAvailability") return analyticsKpis?.fleetAvailability;
+    if (card.valueKey === "hubUtilization") return analyticsKpis?.hubUtilization;
     return counts?.[card.valueKey];
   };
 
   return (
     <DashboardGrid columns={columns}>
       {cards.map((card) => {
+        const value = resolveValue(card);
         const suffix =
           card.valueKey === "deliveredToday" && deliveredToday?.capped ? "+" : card.suffix || "";
         return (
-          <div key={card.title} className="relative">
-            <StatCard
-              icon={card.icon}
-              title={card.title}
-              value={resolveValue(card)}
-              prefix={card.prefix}
-              suffix={suffix}
-              accent={card.accent}
-              animateValue={card.animateValue}
-              delay={card.delay}
-              loading={loading}
-            />
-            {card.preview && (
-              <PreviewBadge className="absolute -top-2 right-4 z-10" />
-            )}
-          </div>
+          <StatCard
+            key={card.title}
+            icon={card.icon}
+            title={card.title}
+            value={value}
+            prefix={card.prefix}
+            suffix={suffix}
+            accent={card.accent}
+            animateValue={card.animateValue}
+            delay={card.delay}
+            loading={loading}
+            empty={value == null}
+          />
         );
       })}
     </DashboardGrid>

@@ -1,4 +1,4 @@
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useNavigate } from "react-router-dom";
@@ -7,6 +7,8 @@ import { FiArrowLeft } from "react-icons/fi";
 import Card, { CardHeader } from "../../components/Card/Card";
 import Input from "../../components/Input/Input";
 import Button from "../../components/Button/Button";
+import DispatcherSelect from "../../components/DispatcherSelect/DispatcherSelect";
+import HubSelect from "../../components/HubSelect/HubSelect";
 import { createShipment, clearActionStatus } from "../../features/shipments/shipmentSlice";
 import { SHIPMENT_PRIORITIES } from "../../utils/constants";
 
@@ -28,6 +30,7 @@ const createShipmentSchema = z
     vehicleNumber: optionalString,
     notes: optionalString,
     assignedDispatcher: optionalString,
+    hub: optionalString,
   })
   .refine(
     (data) =>
@@ -50,6 +53,7 @@ const CreateShipment = () => {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(createShipmentSchema),
@@ -68,6 +72,7 @@ const CreateShipment = () => {
       vehicleNumber: "",
       notes: "",
       assignedDispatcher: "",
+      hub: "",
     },
   });
 
@@ -195,12 +200,29 @@ const CreateShipment = () => {
               error={errors.vehicleNumber?.message}
               {...register("vehicleNumber")}
             />
-            <Input
-              label="Assigned Dispatcher (User ID)"
+            <Controller
               name="assignedDispatcher"
-              placeholder="Mongo ID of an active Carrier Dispatcher"
-              error={errors.assignedDispatcher?.message}
-              {...register("assignedDispatcher")}
+              control={control}
+              render={({ field }) => (
+                <DispatcherSelect
+                  label="Assigned Dispatcher"
+                  value={field.value}
+                  onChange={(dispatcher) => field.onChange(dispatcher ? dispatcher._id : "")}
+                  error={errors.assignedDispatcher?.message}
+                />
+              )}
+            />
+            <Controller
+              name="hub"
+              control={control}
+              render={({ field }) => (
+                <HubSelect
+                  label="Relevant Hub"
+                  value={field.value}
+                  onChange={(hub) => field.onChange(hub ? hub._id : "")}
+                  error={errors.hub?.message}
+                />
+              )}
             />
           </div>
 

@@ -138,6 +138,12 @@ const leaveAllRooms = (userId) => {
 
 const isUserOnline = (userId) => getUserSocketIds(userId) !== undefined;
 
+const getConnectedClients = () => {
+    const io = requireSocketServer();
+    if (!io || !io.engine) return null;
+    return io.engine.clientsCount ?? null;
+};
+
 module.exports = {
     emitToUser,
     emitToUsers,
@@ -150,4 +156,5 @@ module.exports = {
     joinRooms,
     leaveAllRooms,
     isUserOnline,
+    getConnectedClients,
 };

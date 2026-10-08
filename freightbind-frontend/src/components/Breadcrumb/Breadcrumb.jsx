@@ -37,6 +37,10 @@ const CRUMB_ROUTES = [
     ],
   },
   { pattern: /^\/notifications$/, segments: [{ label: "Notifications" }] },
+  { pattern: /^\/users$/, segments: [{ label: "User Management" }] },
+  { pattern: /^\/profile$/, segments: [{ label: "Profile" }] },
+  { pattern: /^\/settings$/, segments: [{ label: "Settings" }] },
+  { pattern: /^\/announcements$/, segments: [{ label: "Announcements" }] },
 ];
 
 /**

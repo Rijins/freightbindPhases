@@ -9,6 +9,10 @@ const initialState = {
   isAuthenticated: Boolean(getToken()),
   loading: false,
   error: null,
+  // Change-password lifecycle. Passwords themselves never live in Redux —
+  // only the request status and a server error message.
+  passwordLoading: false,
+  passwordError: null,
 };
 
 export const loginUser = createAsyncThunk(
@@ -16,6 +20,18 @@ export const loginUser = createAsyncThunk(
   async ({ email, password }, { rejectWithValue }) => {
     try {
       const result = await authService.login({ email, password });
+      return result;
+    } catch (error) {
+      return rejectWithValue(parseApiError(error));
+    }
+  }
+);
+
+export const registerUser = createAsyncThunk(
+  "auth/register",
+  async ({ fullName, email, password, phone }, { rejectWithValue }) => {
+    try {
+      const result = await authService.register({ fullName, email, password, phone });
       return result;
     } catch (error) {
       return rejectWithValue(parseApiError(error));
@@ -57,12 +73,27 @@ export const updateUserProfile = createAsyncThunk(
   }
 );
 
+export const changePassword = createAsyncThunk(
+  "auth/changePassword",
+  async ({ currentPassword, newPassword }, { rejectWithValue }) => {
+    try {
+      await authService.changePassword({ currentPassword, newPassword });
+      return true;
+    } catch (error) {
+      return rejectWithValue(parseApiError(error));
+    }
+  }
+);
+
 const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
     clearAuthError: (state) => {
       state.error = null;
+    },
+    clearPasswordError: (state) => {
+      state.passwordError = null;
     },
   },
   extraReducers: (builder) => {
@@ -82,6 +113,22 @@ const authSlice = createSlice({
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload?.message || "Login failed";
+      })
+      .addCase(registerUser.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(registerUser.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        state.isAuthenticated = true;
+        saveToken(action.payload.token);
+        saveUser(action.payload.user);
+      })
+      .addCase(registerUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload?.message || "Registration failed";
       })
       .addCase(fetchCurrentUser.fulfilled, (state, action) => {
         state.user = action.payload;
@@ -104,9 +151,23 @@ const authSlice = createSlice({
       .addCase(updateUserProfile.fulfilled, (state, action) => {
         state.user = action.payload;
         saveUser(action.payload);
+      })
+      // Change password
+      .addCase(changePassword.pending, (state) => {
+        state.passwordLoading = true;
+        state.passwordError = null;
+      })
+      .addCase(changePassword.fulfilled, (state) => {
+        state.passwordLoading = false;
+        state.passwordError = null;
+      })
+      .addCase(changePassword.rejected, (state, action) => {
+        state.passwordLoading = false;
+        state.passwordError =
+          action.payload || { message: "Something went wrong while changing your password." };
       });
   },
 });
 
-export const { clearAuthError } = authSlice.actions;
+export const { clearAuthError, clearPasswordError } = authSlice.actions;
 export default authSlice.reducer;

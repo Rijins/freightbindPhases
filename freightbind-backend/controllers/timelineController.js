@@ -3,7 +3,7 @@ const { success } = require("../helpers/apiResponse");
 const timelineService = require("../services/timelineService");
 
 const getTimeline = asyncHandler(async (req, res) => {
-  const timeline = await timelineService.getTimeline(req.params.shipmentId);
+  const timeline = await timelineService.getTimeline(req.params.shipmentId, req.user);
   return success(res, {
     message: "Timeline fetched successfully",
     data: { timeline },
@@ -11,7 +11,7 @@ const getTimeline = asyncHandler(async (req, res) => {
 });
 
 const getLatestTimelineEvent = asyncHandler(async (req, res) => {
-  const event = await timelineService.getLatestTimelineEvent(req.params.shipmentId);
+  const event = await timelineService.getLatestTimelineEvent(req.params.shipmentId, req.user);
   return success(res, {
     message: "Latest timeline event fetched successfully",
     data: { event },

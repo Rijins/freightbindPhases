@@ -34,9 +34,10 @@ const todayLabel = () =>
 
 /**
  * AdminCommandCenter — the Admin-only enterprise dashboard at /dashboard.
- * Real data: shipment KPIs, per-status mix, recent shipments, notifications
- * and the merged activity feed. Preview data (clearly badged): AI insights,
- * fleet, hubs, trends and system health — no backend APIs exist for those.
+ * Real data: shipment KPIs, per-status mix, recent shipments, notifications,
+ * the merged activity feed, AI insights, fleet availability, hub health,
+ * volume trends and system health — the analytics sections are served by
+ * GET /api/analytics/dashboard and are role-scoped server-side.
  */
 const AdminCommandCenter = () => {
   const navigate = useNavigate();
@@ -51,11 +52,19 @@ const AdminCommandCenter = () => {
     deliveredToday,
     activity,
     aiInsights,
+    aiSummary,
+    aiOverview,
+    aiRecommendations,
+    aiRecommendationsLoading,
+    aiRecommendationsError,
+    onRetryRecommendations,
+    onRetryAI,
+    aiError,
     fleetVehicles,
     hubs,
     systemServices,
     analyticsTrends,
-    previewKpis,
+    analyticsKpis,
     refetch,
   } = useAdminDashboardData();
   const notifications = useNotifications();
@@ -102,8 +111,20 @@ const AdminCommandCenter = () => {
               label: "Delivered today",
               value: `${deliveredToday?.count}${deliveredToday?.capped ? "+" : ""}`,
             },
-            { label: "Fleet available", value: `${previewKpis.fleetAvailability}%` },
-            { label: "Hub utilization", value: `${previewKpis.hubUtilization}%` },
+            {
+              label: "Fleet available",
+              value:
+                analyticsKpis?.fleetAvailability == null
+                  ? "—"
+                  : `${analyticsKpis.fleetAvailability}%`,
+            },
+            {
+              label: "Hub utilization",
+              value:
+                analyticsKpis?.hubUtilization == null
+                  ? "—"
+                  : `${analyticsKpis.hubUtilization}%`,
+            },
           ]}
           loading={loading}
         />
@@ -112,7 +133,7 @@ const AdminCommandCenter = () => {
           loading={loading}
           counts={counts}
           deliveredToday={deliveredToday}
-          previewKpis={previewKpis}
+          analyticsKpis={analyticsKpis}
         />
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -138,7 +159,23 @@ const AdminCommandCenter = () => {
           />
         </div>
 
-        <AiCommandCenter insights={aiInsights} loading={loading} />
+        <AiCommandCenter
+          insights={aiInsights}
+          loading={loading}
+          shipmentSummary={aiSummary?.summary}
+          shipmentSummaryLoading={aiSummary?.loading}
+          shipmentTitle={aiSummary?.title}
+          aiOverview={aiOverview}
+          aiRecommendations={aiRecommendations}
+          aiRecommendationsLoading={aiRecommendationsLoading}
+          aiRecommendationsError={aiRecommendationsError}
+          onRetryRecommendations={onRetryRecommendations}
+          aiError={aiError}
+          onRetryAI={onRetryAI}
+          onViewShipment={(recommendation) =>
+            recommendation?.mongoId && navigate(`/shipments/${recommendation.mongoId}`)
+          }
+        />
 
         <FleetStatus vehicles={fleetVehicles} loading={loading} />
 

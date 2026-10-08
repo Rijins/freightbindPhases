@@ -24,6 +24,9 @@
 
 /* Smooth cross-fade while a theme change is in flight (reduced-motion safe). */
 @media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
   html.theme-switching *,
   html.theme-switching *::before,
   html.theme-switching *::after {
@@ -77,5 +80,62 @@
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+}
+
+/* ==========================================
+   AUTHENTICATION PAGE ANIMATIONS
+   Decorative only; gated behind
+   prefers-reduced-motion so the layout is
+   fully usable (and identical) when motion
+   is disabled.
+   ========================================== */
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes route-dash {
+    to {
+      stroke-dashoffset: -180;
+    }
+  }
+
+  /* Slowly moving dashed logistics route (SVG stroke). Dash array is 6 + 12,
+     180 is a whole multiple of 18 so the loop is seamless. */
+  .auth-route-line {
+    stroke-dasharray: 6 12;
+    animation: route-dash 18s linear infinite;
+  }
+
+  @keyframes node-pulse {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: scale(0.85);
+    }
+    50% {
+      opacity: 0.95;
+      transform: scale(1.12);
+    }
+  }
+
+  /* Softly pulsing route node on an SVG scene. */
+  .auth-node-pulse {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: node-pulse 3.4s ease-in-out infinite;
+  }
+
+  @keyframes blob-drift {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(28px, -20px, 0) scale(1.06);
+    }
+  }
+
+  /* Very slow atmospheric blob drift (transform/opacity only). */
+  .auth-blob {
+    animation: blob-drift 20s ease-in-out infinite;
   }
 }

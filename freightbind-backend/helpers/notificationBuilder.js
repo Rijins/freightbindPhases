@@ -47,6 +47,27 @@ const success = (title, message) => ({ title, message });
 const error = (title, message) => ({ title, message });
 const aiAlert = (title, message) => ({ title, message });
 
+// Hub-operational notifications (Phase 9 Part 8). Only fired when a shipment
+// is genuinely relevant to a hub — never broadcast to all Hub Operators.
+const hubShipmentRelevant = (shipment, hub) => ({
+    title: "Shipment Created",
+    message: `Shipment ${shipment.shipmentId} is now relevant to ${hub ? hub.name : "your"} hub.`,
+});
+
+const hubShipmentArrived = (shipment, hub) => ({
+    title: "Shipment Arrived at Hub",
+    message: `Shipment ${shipment.shipmentId} has arrived at ${hub ? hub.name : "your"} hub.`,
+});
+
+// New shipment chat message (Phase 9): notifies the intended recipient that
+// the operational conversation on a shipment has a new message from the
+// sender. `sender` is the authenticated sender's user document (role label
+// identifies the sender's side of the conversation).
+const chatMessage = (shipment, sender) => ({
+    title: "New Chat Message",
+    message: `${sender.role} sent you a message on shipment ${shipment.shipmentId}.`,
+});
+
 module.exports = {
     shipmentCreated,
     shipmentUpdated,
@@ -60,4 +81,7 @@ module.exports = {
     success,
     error,
     aiAlert,
+    hubShipmentRelevant,
+    hubShipmentArrived,
+    chatMessage,
 };

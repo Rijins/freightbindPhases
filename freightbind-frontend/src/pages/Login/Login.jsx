@@ -1,34 +1,75 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useDispatch, useSelector } from "react-redux";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { FiTruck } from "react-icons/fi";
+import { useDispatch } from "react-redux";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  FiArrowRight,
+  FiCpu,
+  FiEye,
+  FiEyeOff,
+  FiLock,
+  FiMail,
+  FiRadio,
+  FiUsers,
+} from "react-icons/fi";
 import { loginUser, clearAuthError } from "../../features/auth/authSlice";
 import Input from "../../components/Input/Input";
 import Button from "../../components/Button/Button";
+import Alert from "../../components/Alert/Alert";
+import AuthLayout from "../../components/auth/AuthLayout";
 import useAuth from "../../hooks/useAuth";
+import { fadeInUp, staggerContainer } from "../../animations";
 
 const loginSchema = z.object({
   email: z.string().trim().min(1, "Email is required").email("Enter a valid email address"),
   password: z.string().min(1, "Password is required"),
 });
 
+const LOGIN_BULLETS = [
+  { icon: FiRadio, text: "Real-time shipment & carrier tracking" },
+  { icon: FiCpu, text: "AI-powered delay prediction" },
+  { icon: FiUsers, text: "Multi-role coordination for your team" },
+];
+
+const passwordToggle = (visible, onToggle) => (
+  <button
+    type="button"
+    onClick={onToggle}
+    aria-label={visible ? "Hide password" : "Show password"}
+    aria-pressed={visible}
+    className="flex items-center justify-center rounded-md p-0.5 text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-harbor-500 dark:text-zinc-500 dark:hover:text-slate-300"
+  >
+    {visible ? <FiEyeOff size={16} aria-hidden="true" /> : <FiEye size={16} aria-hidden="true" />}
+  </button>
+);
+
+// Premium field treatment for the auth pages: smooth focus accent in brand
+// teal, gentle hover border. Error fields keep the shared error styling.
+const fieldClass = (hasError) =>
+  hasError
+    ? ""
+    : "!transition-all duration-200 hover:border-slate-400 dark:hover:border-zinc-600 focus:!border-harbor-500 focus:!ring-harbor-500/30";
+
 const Login = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, loading, error } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, touchedFields },
   } = useForm({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
+
+  const redirectTo = location.state?.from?.pathname || "/dashboard";
 
   useEffect(() => {
     return () => {
@@ -37,77 +78,97 @@ const Login = () => {
   }, [dispatch]);
 
   if (isAuthenticated) {
-    const redirectTo = location.state?.from?.pathname || "/dashboard";
     return <Navigate to={redirectTo} replace />;
   }
 
   const onSubmit = async (values) => {
     const result = await dispatch(loginUser(values));
     if (loginUser.fulfilled.match(result)) {
-      navigate("/dashboard", { replace: true });
+      navigate(redirectTo, { replace: true });
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex bg-navy-950">
-      <div className="hidden lg:flex flex-col justify-between w-1/2 px-14 py-12 text-white bg-navy-900">
-        <div className="flex items-center gap-2 font-display text-xl font-semibold">
-          <FiTruck size={22} className="text-harbor-400" />
-          FreightBind AI
+    <AuthLayout
+      panelHeadline="Coordinate every shipment from one command center."
+      panelStatement="Track status, dispatch carriers, and keep every stakeholder aligned in real time."
+      bullets={LOGIN_BULLETS}
+      cardHeading="Welcome back"
+      cardSubheading="Sign in to manage your shipments."
+    >
+      {error && (
+        <div className="mb-5">
+          <Alert severity="error">{error}</Alert>
         </div>
-        <div>
-          <h1 className="font-display text-4xl font-semibold leading-tight max-w-md">
-            Coordinate every shipment from one command center.
-          </h1>
-          <p className="mt-4 text-slate-400 max-w-sm">
-            Track status, dispatch carriers, and keep every stakeholder aligned in real time.
-          </p>
-        </div>
-        <p className="text-xs text-slate-500">© {new Date().getFullYear()} FreightBind AI</p>
-      </div>
+      )}
 
-      <div className="flex flex-1 items-center justify-center px-6 py-12 bg-slate-50 dark:bg-zinc-950">
-        <div className="w-full max-w-sm">
-          <div className="lg:hidden flex items-center gap-2 font-display text-lg font-semibold text-navy-900 mb-8 dark:text-white">
-            <FiTruck size={20} className="text-harbor-500 dark:text-harbor-400" />
-            FreightBind AI
-          </div>
-
-          <h2 className="text-xl font-semibold text-navy-900 dark:text-white">Welcome back</h2>
-          <p className="text-sm text-slate-500 mt-1 mb-6 dark:text-zinc-400">Sign in to manage your shipments.</p>
-
-          {error && (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-signal-rust dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-            <Input
-              label="Email"
-              name="email"
-              type="email"
-              required
-              placeholder="you@company.com"
-              error={errors.email?.message}
-              {...register("email")}
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="space-y-4"
+        noValidate
+        variants={staggerContainer(0.05, 0.15)}
+        initial="hidden"
+        animate="visible"
+      >
+        <motion.div variants={fadeInUp}>
+          <Input
+            label="Email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            placeholder="you@company.com"
+            icon={FiMail}
+            error={errors.email?.message}
+            success={Boolean(touchedFields.email) && !errors.email}
+            className={fieldClass(errors.email)}
+            {...register("email")}
+          />
+        </motion.div>
+        <motion.div variants={fadeInUp}>
+          <Input
+            label="Password"
+            name="password"
+            type={showPassword ? "text" : "password"}
+            required
+            autoComplete="current-password"
+            placeholder="••••••••"
+            icon={FiLock}
+            trailing={passwordToggle(showPassword, () => setShowPassword((v) => !v))}
+            error={errors.password?.message}
+            success={Boolean(touchedFields.password) && !errors.password}
+            className={fieldClass(errors.password)}
+            {...register("password")}
+          />
+        </motion.div>
+        <motion.div variants={fadeInUp} className="pt-1">
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            loading={loading}
+            className="group mt-1 w-full !bg-harbor-600 !shadow-md hover:!bg-harbor-500 hover:!shadow-panelHover focus-visible:!ring-harbor-500 focus-visible:!ring-offset-white dark:focus-visible:!ring-offset-zinc-900"
+          >
+            Sign in
+            <FiArrowRight
+              size={18}
+              className="transition-transform duration-200 group-hover:translate-x-0.5"
+              aria-hidden="true"
             />
-            <Input
-              label="Password"
-              name="password"
-              type="password"
-              required
-              placeholder="••••••••"
-              error={errors.password?.message}
-              {...register("password")}
-            />
-            <Button type="submit" variant="primary" size="lg" loading={loading} className="w-full mt-2">
-              Sign in
-            </Button>
-          </form>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </motion.div>
+      </form>
+
+      <p className="mt-6 text-center text-sm text-slate-500 dark:text-zinc-400">
+        New to FreightBind?{" "}
+        <Link
+          to="/register"
+          className="rounded font-medium text-harbor-600 transition-colors hover:text-harbor-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-harbor-500 dark:text-harbor-400 dark:hover:text-harbor-300"
+        >
+          Create an account
+        </Link>
+      </p>
+    </AuthLayout>
   );
 };
 

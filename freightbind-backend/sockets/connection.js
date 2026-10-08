@@ -9,9 +9,11 @@
 // The userSockets map is also the backing store socketService uses to emit
 // to a user's sockets and to join/leave rooms for a user.
 
+const Shipment = require("../models/Shipment");
 const { SOCKET_EVENTS } = require("../constants/socketEvents");
 const { ROLES } = require("../constants/roles");
 const {
+    ROOM_PREFIXES,
     GLOBAL_ADMIN_ROOM,
     buildUserRoom,
     buildRoleRoom,
@@ -60,14 +62,59 @@ const joinServerManagedRooms = (socket) => {
     }
 };
 
-const handleRoomJoin = (socket, room) => {
+// Realtime room access must never be broader than the data a user may read
+// through the REST API. Admin and Logistics Director may follow any shipment;
+// Carrier Dispatchers may follow any shipment they can already view; Hub
+// Operators are restricted to shipments that belong to their own hub. This
+// mirrors services/shipmentService.js getShipmentById() so a room membership
+// can never leak a shipment a user could not open in the UI.
+const canJoinShipmentRoom = (shipment, user) => {
+    if (!shipment || !user) return false;
+
+    if ([ROLES.ADMIN, ROLES.LOGISTICS_DIRECTOR, ROLES.CARRIER_DISPATCHER].includes(user.role)) {
+        return true;
+    }
+
+    if (user.role === ROLES.HUB_OPERATOR) {
+        return Boolean(
+            user.hub &&
+            shipment.hub &&
+            String(user.hub) === String(shipment.hub)
+        );
+    }
+
+    return false;
+};
+
+const canAccessShipmentRoom = async (shipmentId, user) => {
+    const shipment = await Shipment.findById(shipmentId).select("hub").lean();
+    return canJoinShipmentRoom(shipment, user);
+};
+
+const handleRoomJoin = async (socket, room) => {
     if (!isShipmentRoom(room)) {
         socket.emit(SOCKET_EVENTS.ROOM_ERROR, {
             message: "Only shipment rooms can be joined from the client",
         });
         return;
     }
-    socket.join(room);
+
+    const shipmentId = room.slice(`${ROOM_PREFIXES.SHIPMENT}:`.length);
+
+    try {
+        const allowed = await canAccessShipmentRoom(shipmentId, socket.user);
+        if (!allowed) {
+            socket.emit(SOCKET_EVENTS.ROOM_ERROR, {
+                message: "You do not have access to this shipment",
+            });
+            return;
+        }
+        socket.join(room);
+    } catch (error) {
+        socket.emit(SOCKET_EVENTS.ROOM_ERROR, {
+            message: "Unable to join shipment room",
+        });
+    }
 };
 
 const handleRoomLeave = (socket, room) => {
@@ -126,6 +173,7 @@ const handleConnection = (io, socket) => {
 
 module.exports = {
     handleConnection,
+    canJoinShipmentRoom,
     getUserSocketIds,
     isUserOnline,
 };

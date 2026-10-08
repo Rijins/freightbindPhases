@@ -12,6 +12,12 @@ const NOTIFICATION_TYPES = Object.freeze({
     ERROR: "Error",
     AI_ALERT: "AI Alert",
     GENERAL: "General",
+    SHIPMENT_APPROACHING_HUB: "Shipment Approaching Hub",
+    SHIPMENT_ARRIVED_AT_HUB: "Shipment Arrived at Hub",
+    HUB_HANDOFF_REQUIRED: "Hub Handoff Required",
+    HUB_HANDOFF_COMPLETED: "Hub Handoff Completed",
+    HUB_OPERATIONAL_ISSUE: "Hub Operational Issue",
+    CHAT_MESSAGE: "Chat Message",
 });
 const NOTIFICATION_TYPES_LIST = Object.values(NOTIFICATION_TYPES);
 

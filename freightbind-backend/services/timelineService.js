@@ -52,6 +52,26 @@ const assertCanUpdateStatus = (shipment, user) => {
   throw createError("Forbidden: insufficient role permissions to update shipment status", 403);
 };
 
+// Hub Operators may only read timelines for shipments belonging to their own
+// operational hub. Every other authenticated role may read any shipment's
+// timeline (mirrors services/shipmentService.js getShipmentById()).
+const assertCanViewTimeline = (shipment, user) => {
+  if (user.role !== ROLES.HUB_OPERATOR) return;
+
+  if (!user.hub || !shipment.hub || !user.hub.equals(shipment.hub._id || shipment.hub)) {
+    throw createError("You can only view timelines of shipments relevant to your hub", 403);
+  }
+};
+
+// Hub Operators may only update location / add notes on shipments belonging
+// to their own operational hub.
+const assertHubRelevant = (shipment, user) => {
+  if (user.hub && shipment.hub && user.hub.equals(shipment.hub._id || shipment.hub)) {
+    return;
+  }
+  throw createError("You can only manage shipments relevant to your hub", 403);
+};
+
 const assertCanUpdateLocation = (shipment, user) => {
   if ([ROLES.ADMIN, ROLES.LOGISTICS_DIRECTOR].includes(user.role)) return;
 
@@ -62,7 +82,10 @@ const assertCanUpdateLocation = (shipment, user) => {
     return;
   }
 
-  if (user.role === ROLES.HUB_OPERATOR) return;
+  if (user.role === ROLES.HUB_OPERATOR) {
+    assertHubRelevant(shipment, user);
+    return;
+  }
 
   throw createError("Forbidden: insufficient role permissions to update shipment location", 403);
 };
@@ -82,7 +105,10 @@ const assertCanAddNote = (shipment, user) => {
     return;
   }
 
-  if (user.role === ROLES.HUB_OPERATOR) return;
+  if (user.role === ROLES.HUB_OPERATOR) {
+    assertHubRelevant(shipment, user);
+    return;
+  }
 
   throw createError("Forbidden: insufficient role permissions to add a note", 403);
 };
@@ -91,7 +117,9 @@ const assertCanAddNote = (shipment, user) => {
 // Helpers
 // ------------------------------------------------------------
 const getShipmentOr404 = async (shipmentId) => {
-  const shipment = await Shipment.findById(shipmentId);
+  const shipment = await Shipment.findById(shipmentId)
+    .populate("assignedDispatcher", "fullName email role")
+    .populate("hub", "name location type status");
   if (!shipment) {
     throw createError("Shipment not found", 404);
   }
@@ -115,10 +143,12 @@ const notifyTimelineEvent = async (shipment, eventLabel, event, actingUser) => {
   if (!shipment.assignedDispatcher) return;
 
   try {
+    const dispatcherId =
+      shipment.assignedDispatcher._id || shipment.assignedDispatcher;
     await notificationService.notifyTimelineUpdated(
       shipment,
       eventLabel,
-      shipment.assignedDispatcher,
+      dispatcherId,
       actingUser,
       event._id
     );
@@ -162,8 +192,9 @@ const createTimelineEvent = async ({
 // ------------------------------------------------------------
 // Get Timeline (complete, chronological)
 // ------------------------------------------------------------
-const getTimeline = async (shipmentId) => {
-  await getShipmentOr404(shipmentId);
+const getTimeline = async (shipmentId, user) => {
+  const shipment = await getShipmentOr404(shipmentId);
+  assertCanViewTimeline(shipment, user);
 
   const timeline = await ShipmentTimeline.find({ shipment: shipmentId })
     .populate("performedBy", "fullName email role")
@@ -175,8 +206,9 @@ const getTimeline = async (shipmentId) => {
 // ------------------------------------------------------------
 // Get Latest Timeline Event
 // ------------------------------------------------------------
-const getLatestTimelineEvent = async (shipmentId) => {
-  await getShipmentOr404(shipmentId);
+const getLatestTimelineEvent = async (shipmentId, user) => {
+  const shipment = await getShipmentOr404(shipmentId);
+  assertCanViewTimeline(shipment, user);
 
   const latest = await ShipmentTimeline.findOne({ shipment: shipmentId })
     .populate("performedBy", "fullName email role")
@@ -262,6 +294,20 @@ const updateShipmentLocation = async (shipmentId, location, user) => {
 
   await notifyTimelineEvent(shipment, `Location updated to "${location}"`, event, user);
 
+  // Hub arrival trigger: when the new location matches the shipment's
+  // operational hub name, the hub's operators (and the dispatcher) get an
+  // "Shipment Arrived at Hub" notification. Best-effort — never blocks the
+  // location update itself.
+  if (shipment.hub && shipment.hub.name) {
+    try {
+      if (String(location).trim().toLowerCase() === String(shipment.hub.name).trim().toLowerCase()) {
+        await notificationService.notifyHubShipmentArrived(shipment, user);
+      }
+    } catch (err) {
+      console.error("Hub arrival notification dispatch failed:", err.message);
+    }
+  }
+
   await shipmentRealtimeService.emitShipmentChanged({ shipment });
 
   return { shipment, event };
@@ -338,6 +384,10 @@ const addNote = async (shipmentId, note, user) => {
 
 module.exports = {
   STATUS_TRANSITIONS,
+  assertCanUpdateStatus,
+  assertCanUpdateLocation,
+  assertCanAddNote,
+  assertCanViewTimeline,
   createTimelineEvent,
   getTimeline,
   getLatestTimelineEvent,

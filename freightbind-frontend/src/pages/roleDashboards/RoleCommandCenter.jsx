@@ -44,8 +44,8 @@ const todayLabel = () =>
  *   show: { ai?, fleet?, hubs?, analytics? } // panel toggles, default true
  * }
  *
- * `data` passed to a function `hero.stats` is
- * { active, counts, deliveredToday, previewKpis }.
+*  `data` passed to a function `hero.stats` is
+ *  { active, counts, deliveredToday, analyticsKpis }.
  */
 const RoleCommandCenter = ({ config }) => {
   const navigate = useNavigate();
@@ -60,11 +60,19 @@ const RoleCommandCenter = ({ config }) => {
     deliveredToday,
     activity,
     aiInsights,
+    aiSummary,
+    aiOverview,
+    aiRecommendations,
+    aiRecommendationsLoading,
+    aiRecommendationsError,
+    onRetryRecommendations,
+    onRetryAI,
+    aiError,
     fleetVehicles,
     hubs,
     systemServices,
     analyticsTrends,
-    previewKpis,
+    analyticsKpis,
     refetch,
   } = useAdminDashboardData();
   const notifications = useNotifications();
@@ -86,7 +94,7 @@ const RoleCommandCenter = ({ config }) => {
   const firstName = user?.fullName?.split(" ")[0] || "Admin";
   const stats =
     typeof hero.stats === "function"
-      ? hero.stats({ active, counts, deliveredToday, previewKpis })
+      ? hero.stats({ active, counts, deliveredToday, analyticsKpis })
       : hero.stats || [];
 
   return (
@@ -105,7 +113,7 @@ const RoleCommandCenter = ({ config }) => {
           loading={loading}
           counts={counts}
           deliveredToday={deliveredToday}
-          previewKpis={previewKpis}
+          analyticsKpis={analyticsKpis}
           cards={kpis.cards}
           columns={kpis.columns}
         />
@@ -133,7 +141,25 @@ const RoleCommandCenter = ({ config }) => {
           />
         </div>
 
-        {show.ai !== false && <AiCommandCenter insights={aiInsights} loading={loading} />}
+        {show.ai !== false && (
+          <AiCommandCenter
+            insights={aiInsights}
+            loading={loading}
+            shipmentSummary={aiSummary?.summary}
+            shipmentSummaryLoading={aiSummary?.loading}
+            shipmentTitle={aiSummary?.title}
+            aiOverview={aiOverview}
+            aiRecommendations={aiRecommendations}
+            aiRecommendationsLoading={aiRecommendationsLoading}
+            aiRecommendationsError={aiRecommendationsError}
+            onRetryRecommendations={onRetryRecommendations}
+            aiError={aiError}
+            onRetryAI={onRetryAI}
+            onViewShipment={(recommendation) =>
+              recommendation?.mongoId && navigate(`/shipments/${recommendation.mongoId}`)
+            }
+          />
+        )}
 
         {show.fleet !== false && <FleetStatus vehicles={fleetVehicles} loading={loading} />}
 

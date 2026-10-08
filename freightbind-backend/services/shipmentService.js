@@ -1,5 +1,6 @@
 const Shipment = require("../models/Shipment");
 const User = require("../models/User");
+const Hub = require("../models/Hub");
 const { ROLES } = require("../constants/roles");
 const notificationService = require("./notificationService");
 const shipmentRealtimeService = require("./shipmentRealtimeService");
@@ -22,6 +23,7 @@ const MUTABLE_FIELDS = [
     "vehicleNumber",
     "notes",
     "assignedDispatcher",
+    "hub",
 ];
 
 const STATUS_TRANSITIONS = {
@@ -58,6 +60,20 @@ const verifyDispatcher = async (dispatcherId) => {
     }
 };
 
+// A shipment's operational hub must exist and be active. Only Admin and
+// Logistics Director can set it (they are the only shipment editors with
+// hub access), so no role check is needed here.
+const verifyHub = async (hubId) => {
+    if (!hubId) return;
+    const hub = await Hub.findById(hubId);
+    if (!hub) {
+        throw createError("Hub not found", 404);
+    }
+    if (hub.status !== "active") {
+        throw createError("Cannot assign a shipment to an inactive hub", 422);
+    }
+};
+
 const validateDateOrder = (shipment) => {
     if (
         shipment.estimatedDeparture &&
@@ -86,6 +102,7 @@ const createShipment = async (payload, user) => {
     }
 
     await verifyDispatcher(payload.assignedDispatcher);
+    await verifyHub(payload.hub);
 
     const shipmentData = getAllowedUpdateFields(payload);
     shipmentData.createdBy = user._id;
@@ -98,6 +115,19 @@ const createShipment = async (payload, user) => {
     try {
         console.log("Creating notification...");
         await notificationService.notifyShipmentCreated(shipment, user);
+        // A dispatcher picked at creation time must receive the same
+        // "Shipment Assigned" notification the update/timeline flows send.
+        // notifyShipmentCreated covers the "Shipment Created" notice; this
+        // emits the personal assignment notice — recipient is the assigned
+        // dispatcher only, never the whole role.
+        if (shipment.assignedDispatcher) {
+            await notificationService.notifyShipmentAssigned(shipment, user);
+        }
+        // Hub operators are only notified when the shipment is actually
+        // relevant to THEIR hub — never on every shipment creation.
+        if (shipment.hub) {
+            await notificationService.notifyHubShipmentRelevant(shipment, user);
+        }
         console.log("Notification created successfully.");
     } catch (err) {
         console.error("Notification dispatch failed:");
@@ -109,7 +139,19 @@ const createShipment = async (payload, user) => {
     return shipment;
 };
 
-const getShipments = async (filters) => {
+// Hub Operators only ever see shipments relevant to their own hub. A Hub
+// Operator without a hub sees an empty list (their workspace shows a setup
+// state instead of unrelated shipments). Every other role keeps the full
+// shipment list and may additionally filter by hub via query params.
+const applyHubVisibility = async (query, user) => {
+    if (!user || user.role !== ROLES.HUB_OPERATOR) return;
+    query.hub = user.hub || null;
+    if (query.hub === null) {
+        query._id = { $in: [] };
+    }
+};
+
+const getShipments = async (filters, user) => {
     const {
         search,
         status,
@@ -120,6 +162,7 @@ const getShipments = async (filters) => {
         destination,
         createdBy,
         assignedDispatcher,
+        hub,
         page = 1,
         limit = 10,
         sortBy = "createdAt",
@@ -135,6 +178,9 @@ const getShipments = async (filters) => {
     if (destination) query.destination = destination;
     if (createdBy) query.createdBy = createdBy;
     if (assignedDispatcher) query.assignedDispatcher = assignedDispatcher;
+    if (hub) query.hub = hub;
+
+    await applyHubVisibility(query, user);
 
     if (search) {
         const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -155,6 +201,7 @@ const getShipments = async (filters) => {
         Shipment.find(query)
             .populate("createdBy", "fullName email role")
             .populate("assignedDispatcher", "fullName email role")
+            .populate("hub", "name location type status")
             .sort(sort)
             .skip(skip)
             .limit(limit),
@@ -171,13 +218,23 @@ const getShipments = async (filters) => {
     };
 };
 
-const getShipmentById = async (shipmentId) => {
+const getShipmentById = async (shipmentId, user) => {
     const shipment = await Shipment.findById(shipmentId)
         .populate("createdBy", "fullName email role")
-        .populate("assignedDispatcher", "fullName email role");
+        .populate("assignedDispatcher", "fullName email role")
+        .populate("hub", "name location type status");
 
     if (!shipment) {
         throw createError("Shipment not found", 404);
+    }
+
+    // Hub Operators may only open shipments relevant to their hub.
+    if (
+        user &&
+        user.role === ROLES.HUB_OPERATOR &&
+        (!user.hub || !shipment.hub || !user.hub.equals(shipment.hub._id || shipment.hub))
+    ) {
+        throw createError("You can only view shipments relevant to your hub", 403);
     }
 
     return shipment;
@@ -188,6 +245,9 @@ const authorizeUpdate = (shipment, updates, user) => {
         if (Object.keys(updates).length !== 1 || updates.currentLocation === undefined) {
             throw createError("Hub Operators can update shipment location only", 403);
         }
+        if (!user.hub || !shipment.hub || String(user.hub) !== String(shipment.hub._id || shipment.hub)) {
+            throw createError("You can only update shipments relevant to your hub", 403);
+        }
         return;
     }
 
@@ -195,8 +255,8 @@ const authorizeUpdate = (shipment, updates, user) => {
         if (!shipment.assignedDispatcher || !shipment.assignedDispatcher.equals(user._id)) {
             throw createError("Carrier Dispatchers can update assigned shipments only", 403);
         }
-        if (updates.assignedDispatcher !== undefined) {
-            throw createError("Carrier Dispatchers cannot reassign shipments", 403);
+        if (updates.assignedDispatcher !== undefined || updates.hub !== undefined) {
+            throw createError("Carrier Dispatchers cannot reassign shipments or change their hub", 403);
         }
         return;
     }
@@ -256,12 +316,14 @@ const updateShipment = async (shipmentId, payload, user) => {
     authorizeUpdate(shipment, updates, user);
     validateStatusTransition(shipment.status, updates.status);
     await verifyDispatcher(updates.assignedDispatcher);
+    await verifyHub(updates.hub);
 
     const updatedValues = { ...shipment.toObject(), ...updates };
     validateDateOrder(updatedValues);
 
     const previousStatus = shipment.status;
     const previousDispatcher = shipment.assignedDispatcher;
+    const previousHub = shipment.hub;
 
     shipment.set(updates);
 
@@ -274,6 +336,16 @@ const updateShipment = async (shipmentId, payload, user) => {
         previousDispatcher,
         user
     );
+
+    // When a shipment's operational hub is set (or changes), only that hub's
+    // operators are notified — never all Hub Operators.
+    if (savedShipment.hub && (!previousHub || !previousHub.equals(savedShipment.hub))) {
+        try {
+            await notificationService.notifyHubShipmentRelevant(savedShipment, user);
+        } catch (err) {
+            console.error("Hub notification dispatch failed:", err.message);
+        }
+    }
 
     await shipmentRealtimeService.emitShipmentChanged({
         shipment: savedShipment,
@@ -302,4 +374,5 @@ module.exports = {
     getShipmentById,
     updateShipment,
     deleteShipment,
+    authorizeUpdate,
 };

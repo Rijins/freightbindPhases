@@ -11,6 +11,7 @@ import Input from "../../components/Input/Input";
 import Modal from "../../components/Modal/Modal";
 import StatusBadge from "../../components/StatusBadge/StatusBadge";
 import PriorityBadge from "../../components/StatusBadge/PriorityBadge";
+import DispatcherSelect from "../../components/DispatcherSelect/DispatcherSelect";
 import useAuth from "../../hooks/useAuth";
 import {
   fetchShipments,
@@ -20,7 +21,7 @@ import {
   clearActionStatus,
 } from "../../features/shipments/shipmentSlice";
 import { SHIPMENT_STATUSES, SHIPMENT_PRIORITIES, SORT_FIELDS } from "../../utils/constants";
-import { canCreateShipment, canDeleteShipment, formatDate } from "../../utils/helpers";
+import { canAssignDispatcher, canCreateShipment, canDeleteShipment, canEditShipment, formatDate } from "../../utils/helpers";
 
 const ShipmentList = () => {
   const dispatch = useDispatch();
@@ -31,6 +32,7 @@ const ShipmentList = () => {
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [dispatcherFilterUser, setDispatcherFilterUser] = useState(null);
   const [localFilters, setLocalFilters] = useState({
     cargoType: query.cargoType,
     shipmentType: query.shipmentType,
@@ -42,6 +44,7 @@ const ShipmentList = () => {
 
   const showCreate = canCreateShipment(user?.role);
   const showDelete = canDeleteShipment(user?.role);
+  const showEdit = (row) => canEditShipment(user, row);
 
   useEffect(() => {
     dispatch(fetchShipments(query));
@@ -86,13 +89,15 @@ const ShipmentList = () => {
             <Link to={`/shipments/${row._id}`} className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300" title="View">
               <FiEye size={16} />
             </Link>
-            <Link
-              to={`/shipments/edit/${row._id}`}
-              className="text-slate-500 hover:text-navy-900 dark:text-zinc-400 dark:hover:text-white"
-              title="Edit"
-            >
-              <FiEdit2 size={16} />
-            </Link>
+            {showEdit(row) && (
+              <Link
+                to={`/shipments/edit/${row._id}`}
+                className="text-slate-500 hover:text-navy-900 dark:text-zinc-400 dark:hover:text-white"
+                title="Edit"
+              >
+                <FiEdit2 size={16} />
+              </Link>
+            )}
             {showDelete && (
               <button
                 type="button"
@@ -107,7 +112,7 @@ const ShipmentList = () => {
         ),
       },
     ],
-    [showDelete]
+    [showDelete, user]
   );
 
   const handleSortChange = (sortBy, order) => {
@@ -123,6 +128,7 @@ const ShipmentList = () => {
   };
 
   const clearFilters = () => {
+    setDispatcherFilterUser(null);
     setLocalFilters({
       cargoType: "",
       shipmentType: "",
@@ -251,13 +257,17 @@ const ShipmentList = () => {
                 value={localFilters.destination}
                 onChange={(e) => setLocalFilters((f) => ({ ...f, destination: e.target.value }))}
               />
-              <Input
-                label="Assigned Dispatcher (User ID)"
-                name="assignedDispatcher"
-                placeholder="Mongo user ID"
-                value={localFilters.assignedDispatcher}
-                onChange={(e) => setLocalFilters((f) => ({ ...f, assignedDispatcher: e.target.value }))}
-              />
+              {canAssignDispatcher(user) && (
+                <DispatcherSelect
+                  label="Assigned Dispatcher"
+                  value={localFilters.assignedDispatcher}
+                  displayUser={dispatcherFilterUser}
+                  onChange={(dispatcher) => {
+                    setDispatcherFilterUser(dispatcher);
+                    setLocalFilters((f) => ({ ...f, assignedDispatcher: dispatcher ? dispatcher._id : "" }));
+                  }}
+                />
+              )}
               <Input
                 label="Created By (User ID)"
                 name="createdBy"

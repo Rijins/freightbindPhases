@@ -1,7 +1,7 @@
 import React from 'react';
 import {
     FiCheck, FiTrash2, FiPackage,
-    FiAlertCircle, FiTruck, FiClock
+    FiAlertCircle, FiTruck, FiClock, FiAlertOctagon, FiMessageSquare
 } from 'react-icons/fi';
 
 // --- Helper Functions ---
@@ -16,6 +16,8 @@ const getIcon = (type) => {
         case 'shipment_cancelled': return <FiAlertCircle className="h-4 w-4 text-red-500" />;
         case 'shipment_delayed': return <FiAlertCircle className="h-4 w-4 text-amber-500" />;
         case 'shipment_delivered': return <FiCheck className="h-4 w-4 text-emerald-500" />;
+        case 'ai_alert': return <FiAlertOctagon className="h-4 w-4 text-rose-500" />;
+        case 'chat_message': return <FiMessageSquare className="h-4 w-4 text-harbor-500" />;
         default: return <FiClock className="h-4 w-4 text-gray-500" />;
     }
 };

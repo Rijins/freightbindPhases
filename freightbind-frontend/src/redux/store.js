@@ -6,6 +6,13 @@ import timelineReducer from "../features/timeline/timelineSlice";
 import notificationReducer from "../features/notifications/notificationSlice";
 // Phase 7 Part 5: dashboard synchronization store (KPIs, overview, activity)
 import dashboardReducer from "../features/dashboard/dashboardSlice";
+// Phase 9 Part 5: admin user management
+import usersReducer from "../features/users/usersSlice";
+// Phase 9 Part 7: system announcements
+import announcementsReducer from "../features/announcements/announcementsSlice";
+// Phase 9 Part 8: hub management + operational shipment chat
+import hubsReducer from "../features/hubs/hubsSlice";
+import chatReducer from "../features/chat/chatSlice";
 
 // Redux is the single source of truth for auth + shipment state.
 // Slices live under features/<name>/ (feature-based structure) and are
@@ -19,6 +26,13 @@ export const store = configureStore({
     notifications: notificationReducer,
     // Phase 7 Part 5: realtime-synced dashboard state
     dashboard: dashboardReducer,
+    // Phase 9 Part 5: admin user management
+    users: usersReducer,
+    // Phase 9 Part 7: system announcements
+    announcements: announcementsReducer,
+    // Phase 9 Part 8: hubs + chat
+    hubs: hubsReducer,
+    chat: chatReducer,
   },
 });
 

@@ -1,7 +1,6 @@
 import { FiBox, FiTool, FiTruck } from "react-icons/fi";
 import Card from "../Card/Card";
 import Badge from "../Badges/Badge";
-import ProgressBar from "../Progress/ProgressBar";
 import SkeletonCard from "../Skeleton/SkeletonCard";
 import Avatar from "../Avatar/Avatar";
 import { formatWeight } from "../../utils/helpers";
@@ -16,12 +15,14 @@ const STATUS_TONES = {
 };
 
 /**
- * VehicleCard — fleet summary: registration, type, current driver, capacity
- * utilisation, active shipment and vehicle status tag.
+ * VehicleCard — fleet summary: registration, driver, current load and active
+ * shipment. Vehicles come from the analytics endpoint (real shipments carrying
+ * a vehicleNumber), so make/model/capacity are absent by design and the card
+ * only shows the load that exists.
  *
  * Props: vehicle, loading, onClick, className.
- * vehicle: { _id, registrationNumber, make, model, driver, capacity,
- *   currentLoad, currentShipment, status, progress }
+ * vehicle: { _id, registrationNumber, driver, status, currentShipmentId,
+ *   currentLoad, currentShipment { id, weight, title } }
  */
 const VehicleCard = ({ vehicle, loading = false, onClick, className = "" }) => {
   if (loading) {
@@ -33,12 +34,7 @@ const VehicleCard = ({ vehicle, loading = false, onClick, className = "" }) => {
   const v = vehicle;
   const driver =
     typeof v.driver === "object" && v.driver ? v.driver.name : v.driverName || v.driver || "Unassigned";
-  const load =
-    v.progress !== undefined
-      ? Math.min(100, Math.round(Number(v.progress) * 100))
-      : v.capacity
-        ? Math.min(100, Math.round(((v.currentLoad || 0) / v.capacity) * 100))
-        : 0;
+  const hasLoad = typeof v.currentLoad === "number";
 
   return (
     <Card
@@ -56,22 +52,19 @@ const VehicleCard = ({ vehicle, loading = false, onClick, className = "" }) => {
               {v.registrationNumber || v.numberPlate || "—"}
             </p>
             <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-              {[v.make, v.model].filter(Boolean).join(" ") || "Unknown model"}
+              {[v.make, v.model].filter(Boolean).join(" ") || v.type || "Unknown model"}
             </p>
           </div>
         </div>
         <Badge tone={STATUS_TONES[v.status] || STATUS_TONES.Offline}>{v.status || "—"}</Badge>
       </div>
 
-      {(v.currentLoad !== undefined || v.capacity !== undefined) && (
-        <div className="mt-4">
-          <div className="mb-1.5 flex items-center gap-2">
-            <FiBox size={14} className="text-slate-400 dark:text-slate-500" aria-hidden="true" />
-            <span className="text-xs text-slate-600 dark:text-slate-300">
-              Loaded {formatWeight(v.currentLoad)} of {formatWeight(v.capacity)}
-            </span>
-          </div>
-          <ProgressBar value={load} size="sm" showValue />
+      {hasLoad && (
+        <div className="mt-4 flex items-center gap-2">
+          <FiBox size={14} className="text-slate-400 dark:text-slate-500" aria-hidden="true" />
+          <span className="text-xs text-slate-600 dark:text-slate-300">
+            Loaded {formatWeight(v.currentLoad)}
+          </span>
         </div>
       )}
 
@@ -83,7 +76,7 @@ const VehicleCard = ({ vehicle, loading = false, onClick, className = "" }) => {
         <span className="flex items-center gap-1.5">
           <FiTool size={12} aria-hidden="true" />
           <span className="truncate">
-            {v.currentShipment?.id || v.currentShipmentId || "No shipments"}
+            {v.currentShipment?.title || v.currentShipment?.id || v.currentShipmentId || "No shipments"}
           </span>
         </span>
       </div>

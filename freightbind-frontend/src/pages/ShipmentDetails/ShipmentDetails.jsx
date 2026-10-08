@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { FiArrowLeft, FiEdit2, FiTrash2, FiClock } from "react-icons/fi";
+import { FiArrowLeft, FiEdit2, FiTrash2, FiClock, FiMessageSquare } from "react-icons/fi";
 import Card, { CardHeader } from "../../components/Card/Card";
 import Loader from "../../components/Loader/Loader";
 import Button from "../../components/Button/Button";
@@ -16,7 +16,7 @@ import {
 } from "../../features/shipments/shipmentSlice";
 import useAuth from "../../hooks/useAuth";
 import useShipmentRoom from "../../hooks/useShipmentRoom";
-import { canDeleteShipment, canEditShipment, formatDate, formatDateTime, formatWeight } from "../../utils/helpers";
+import { canChatOnShipment, canDeleteShipment, canEditShipment, formatDate, formatDateTime, formatWeight } from "../../utils/helpers";
 
 const Field = ({ label, value }) => (
   <div>
@@ -92,6 +92,13 @@ const ShipmentDetails = () => {
               Timeline
             </Button>
           </Link>
+          {canChatOnShipment(user, selected) && (
+            <Link to={`/shipments/${selected._id}/chat`}>
+              <Button variant="outline" icon={FiMessageSquare}>
+                Chat
+              </Button>
+            </Link>
+          )}
           {showEdit && (
             <Link to={`/shipments/edit/${selected._id}`}>
               <Button variant="outline" icon={FiEdit2}>
@@ -123,6 +130,7 @@ const ShipmentDetails = () => {
           <Field label="Origin" value={selected.origin} />
           <Field label="Destination" value={selected.destination} />
           <Field label="Current Location" value={selected.currentLocation} />
+          <Field label="Relevant Hub" value={selected.hub?.name} />
           <Field label="Weight" value={formatWeight(selected.weight)} />
           <Field label="Container Number" value={selected.containerNumber} />
           <Field label="Vehicle Number" value={selected.vehicleNumber} />

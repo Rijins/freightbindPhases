@@ -93,6 +93,7 @@ const Notifications = () => {
                         <option value="Shipment Cancelled">Cancelled</option>
                         <option value="Timeline Event">Timeline Event</option>
                         <option value="System Announcement">System Announcement</option>
+                        <option value="Chat Message">Chat Message</option>
                     </select>
                 </div>
 

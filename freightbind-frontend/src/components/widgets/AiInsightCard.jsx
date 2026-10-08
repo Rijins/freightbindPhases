@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { FiArrowRight, FiZap } from "react-icons/fi";
+import { FiArrowRight, FiCheckCircle, FiZap } from "react-icons/fi";
 import Badge from "../Badges/Badge";
 import ProgressCircular from "../Progress/ProgressCircular";
 import Skeleton from "../Skeleton/Skeleton";
@@ -19,10 +19,12 @@ const SEVERITY_CONFIG = {
  * rationale, a suggested action and a confidence ring. The decorative ring is
  * role-themed; severity reads via the badge.
  *
- * Props: insight, loading, onApply, className.
+ * Props: insight, loading, onApply, detail, className.
  * insight: { _id, title, summary?, recommendation, severity, confidence }
+ * detail:  { progress?, nextAction? } — compact shipment-intelligence rows
+ *          (Current progress / Next action) shown below the recommendation.
  */
-const AiInsightCard = ({ insight, loading = false, onApply, className = "" }) => {
+const AiInsightCard = ({ insight, loading = false, onApply, detail, className = "" }) => {
   const roleTheme = useRoleTheme();
 
   if (loading) {
@@ -94,22 +96,39 @@ const AiInsightCard = ({ insight, loading = false, onApply, className = "" }) =>
         <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{i.summary}</p>
       )}
 
-      {i.recommendation && (
+      {i.recommendation && onApply ? (
         <button
           type="button"
           onClick={onApply}
-          disabled={!onApply}
-          className={cn(
-            "mt-4 flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-sm transition-colors dark:border-zinc-800 dark:bg-zinc-800/60",
-            onApply &&
-              "cursor-pointer hover:border-slate-300 hover:bg-slate-100 dark:hover:border-zinc-700 dark:hover:bg-zinc-800"
-          )}
+          className="mt-4 flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-sm transition-colors hover:border-slate-300 hover:bg-slate-100 dark:border-zinc-800 dark:bg-zinc-800/60 dark:hover:border-zinc-700 dark:hover:bg-zinc-800"
         >
           <span className="flex min-w-0 items-center gap-2">
             <FiArrowRight size={14} className="shrink-0 text-slate-400 dark:text-slate-500" aria-hidden="true" />
             <span className="truncate text-slate-700 dark:text-slate-300">{i.recommendation}</span>
           </span>
         </button>
+      ) : i.recommendation ? (
+        <div className="mt-4 flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-800/60">
+          <FiArrowRight size={14} className="mt-0.5 shrink-0 text-slate-400 dark:text-slate-500" aria-hidden="true" />
+          <span className="text-sm text-slate-600 dark:text-slate-300">{i.recommendation}</span>
+        </div>
+      ) : null}
+
+      {(detail?.progress || detail?.nextAction) && (
+        <dl className="mt-3 space-y-1.5 border-t border-slate-100 pt-3 dark:border-zinc-800">
+          {detail?.progress && (
+            <div className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
+              <FiCheckCircle size={13} className="mt-0.5 shrink-0 text-emerald-500" aria-hidden="true" />
+              <dd className="min-w-0">{detail.progress}</dd>
+            </div>
+          )}
+          {detail?.nextAction && (
+            <div className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
+              <FiArrowRight size={13} className="mt-0.5 shrink-0 text-slate-400 dark:text-slate-500" aria-hidden="true" />
+              <dd className="min-w-0">{detail.nextAction}</dd>
+            </div>
+          )}
+        </dl>
       )}
     </motion.div>
   );

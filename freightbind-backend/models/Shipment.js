@@ -72,6 +72,14 @@ const shipmentSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    // Operational Hub this shipment hands through (e.g. Kochi Port Hub).
+    // Set by Admin / Logistics Director; Hub Operators of this hub gain
+    // operational visibility + chat access for the shipment.
+    hub: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Hub",
+      default: null,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -118,11 +126,11 @@ const shipmentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-shipmentSchema.index({ shipmentId: 1 }, { unique: true });
 shipmentSchema.index({ status: 1, priority: 1 });
 shipmentSchema.index({ origin: 1, destination: 1 });
 shipmentSchema.index({ assignedDispatcher: 1 });
 shipmentSchema.index({ createdBy: 1 });
+shipmentSchema.index({ hub: 1 });
 
 module.exports = mongoose.model("Shipment", shipmentSchema);
 module.exports.SHIPMENT_STATUSES = SHIPMENT_STATUSES;
